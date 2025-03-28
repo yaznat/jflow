@@ -7,7 +7,6 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
-import JFlow.Utility;
 
 class Dropout {
     private double alpha;

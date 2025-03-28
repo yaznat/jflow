@@ -45,7 +45,7 @@ public class Image {
     }
 
     protected Image(double[][][] image, int label) {
-        // raw = image;
+        raw = image;
 
         yData = label;
         xData = raw;
@@ -66,7 +66,7 @@ public class Image {
     }
 
 
-    // Flatten the image to a 1D vector
+    // Flatten the image to 1D, keeping channels separate
     public double[] getFlat() {
         int channels = xData.length;
         int height = xData[0].length;
@@ -83,25 +83,7 @@ public class Image {
         }
         return flat;
     }
-    // // Flatten by grouping RGB values together
-    // public double[] getFlat() {
-    //     int channels = xData.length;
-    //     int height = xData[0].length;
-    //     int width = xData[0][0].length;
-    //     double[] flat = new double[channels * height * width];
-    //     int index = 0;
-    //     for (int h = 0; h < height; h++) {
-    //         for (int w = 0; w < width; w++) {
-    //             for (int c = 0; c < channels; c++) {
-    //                 flat[index++] = xData[c][h][w];
-    //             }
-    //         }
-    //     }
-    //     return flat;
-    // }
 
-
-    
     public double[][][] getPixels() {
         return raw;
     }
@@ -119,12 +101,13 @@ public class Image {
     }
 
 
+    // Return true if an image is grayscale
     private boolean grayscaleCheck(BufferedImage img) {
         int width = img.getWidth();
         int height = img.getHeight();
     
-        for (int y = 0; y < height; y += 10) { // Check every 10th row
-            for (int x = 0; x < width; x += 10) { // Check every 10th column
+        for (int y = 0; y < height; y += 5) { // Check every 5th row
+            for (int x = 0; x < width; x += 5) { // Check every 5th column
                 int argb = img.getRGB(x, y);
                 int red   = (argb >> 16) & 0xFF;
                 int green = (argb >> 8)  & 0xFF;

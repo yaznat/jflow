@@ -2,10 +2,14 @@ package JFlow.utils;
 
 import java.awt.Color;
 import java.awt.Graphics;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ForkJoinPool;
+
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 
-import JFlow.Utility;
 
 public class ConfusionMatrix extends JPanel{
     private JFrame frame;
@@ -16,7 +20,7 @@ public class ConfusionMatrix extends JPanel{
     public ConfusionMatrix(int[] predictions, int[] labels){
         this.predictions = predictions;
         this.labels = labels;
-        this.numClasses = Utility.max(labels) + 1;
+        this.numClasses = max(labels) + 1;
         this.frame = new JFrame("Confusion Matrix");
         frame.setBounds(0, 0, 40 * numClasses + 80, 40 * numClasses + 25 + 40);
         frame.add(this);
@@ -51,7 +55,7 @@ public class ConfusionMatrix extends JPanel{
         }
         try {
             // Rotate the matrix for standard configuration
-            labelsGuessed = Utility.transpose(Utility.transpose(Utility.transpose(labelsGuessed)));
+            labelsGuessed = transpose(transpose(transpose(labelsGuessed)));
         } catch (IllegalArgumentException e) {}
         for (int i = 0; i < numClasses; i++) {
             for (int j = 0; j < numClasses; j++) {
@@ -104,5 +108,52 @@ public class ConfusionMatrix extends JPanel{
                 g.drawString(String.valueOf(i), 52 + i * 40, 40 * numClasses + 25);
             }
         }
+    }
+
+    // Rotate an array clockwise by 90 degrees
+    public static double[][] transpose(double[][] arr) {
+        int numRows = arr.length;
+        int numCols = arr[0].length;
+
+        int numThreads = Runtime.getRuntime().availableProcessors();
+        int minSizeForParallel = 10000 * numThreads;
+        double[][] result = new double[numCols][numRows];
+
+
+        if (numRows * numCols >= minSizeForParallel) {
+            ForkJoinPool pool = new ForkJoinPool(numThreads);
+            List<Callable<Void>> tasks = new ArrayList<>();
+            for (int i = 0; i < numRows; i++) {
+                final int row = i;
+                tasks.add(() -> {
+                    for (int col = 0; col < numCols; col++) {
+                        result[col][row] = arr[row][col];
+                    }
+                    return null;
+                });
+            }
+            try {
+                pool.invokeAll(tasks);
+            } catch (Exception e) {
+                Thread.currentThread().interrupt(); 
+                e.printStackTrace();
+            }
+            pool.close();
+        }  else {
+            for (int row = 0; row < numRows; row++) {
+                for (int col = 0; col < numCols; col++) {
+                    result[col][row] = arr[row][col];
+                }
+            }
+        }
+        return result;
+    }
+
+    public int max(int[] arr) {
+        int max = 0;
+        for (int i : arr) {
+            max = Math.max(max, i);
+        }
+        return max;
     }
 }

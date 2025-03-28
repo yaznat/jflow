@@ -23,55 +23,55 @@ abstract class Layer {
     }
 
 
-    public abstract void forward(JMatrix input, boolean training);
+    protected abstract void forward(JMatrix input, boolean training);
 
-    public abstract void backward(JMatrix input, double learningRate);
+    protected abstract void backward(JMatrix input, double learningRate);
 
-    public abstract JMatrix getOutput();
-    public abstract JMatrix getGradient();
+    protected abstract JMatrix getOutput();
+    protected abstract JMatrix getGradient();
 
-    public void setDebug(boolean debug) {
+    protected void setDebug(boolean debug) {
         this.debug = debug;
     }
 
-    public boolean getDebug() {
+    protected boolean getDebug() {
         return debug;
     }
 
-    public void setActivation(Activation activation) {
+    protected void setActivation(Activation activation) {
         this.activation = activation;
     }
 
-    public Layer getNextLayer() {
+    protected Layer getNextLayer() {
         return nextLayer;
     }
-    public Layer getPreviousLayer() {
+    protected Layer getPreviousLayer() {
         return previousLayer;
     }
 
-    public void setNextLayer(Layer nextLayer) {
+    protected void setNextLayer(Layer nextLayer) {
         this.nextLayer = nextLayer;
     }
 
-    public void setPreviousLayer(Layer previousLayer) {
+    protected void setPreviousLayer(Layer previousLayer) {
         this.previousLayer = previousLayer;
     }
     
-    public void setDropout(Dropout dropout) {
+    protected void setDropout(Dropout dropout) {
         this.dropout = dropout;
     }
 
-    public Dropout getDropout() {
+    protected Dropout getDropout() {
         return dropout;
     }
 
-    public int numTrainableParameters() {
+    protected int numTrainableParameters() {
         return numTrainableParameters;
     }
-    public void setIDnum(int IDnum) {
+    protected void setIDnum(int IDnum) {
         nameID += "_" + IDnum;
     }
-    public String getNameID() {
+    protected String getNameID() {
         return nameID;
     }
 

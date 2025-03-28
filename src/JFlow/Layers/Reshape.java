@@ -1,8 +1,5 @@
 package JFlow.Layers;
 
-import java.util.concurrent.ForkJoinPool;
-import java.util.stream.IntStream;
-
 import JFlow.JMatrix;
 
 class Reshape extends Layer{
@@ -24,10 +21,12 @@ class Reshape extends Layer{
         this.oldWidth = input.width();
 
 
+        // Account for dense layers being transposed
         if (getPreviousLayer() instanceof Dense) {
             input = input.transpose2D();
         }
 
+         // Improper dimension catching is handled inside of JMatrix.reshape()
         if (getNextLayer() != null) {
             getNextLayer().forward(input.reshape(input.length(), newChannels, newHeight, newWidth), training);
         }
@@ -50,11 +49,7 @@ class Reshape extends Layer{
             System.out.println("Input width:" + width);
         }
 
-        // if (getPreviousLayer() instanceof Dense) {
-        //     input = input.transpose2D();
-        // }
-
-        // Pass to the previous layer
+        // Improper dimension catching is handled inside of JMatrix.reshape()
         if (getPreviousLayer() != null) {
             getPreviousLayer().backward(input.reshape(oldLength, oldChannels, oldHeight, oldWidth), learningRate);
         }

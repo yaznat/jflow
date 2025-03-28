@@ -2,8 +2,6 @@ package JFlow.data;
 import java.util.ArrayList;
 import java.util.function.Function;
 
-import JFlow.Utility;
-
 public class Transform {
     // Store transforms
     private ArrayList<Function<double[][][], double[][][]>> transforms;
@@ -36,15 +34,6 @@ public class Transform {
         );
     }
 
-    // Apply convolutional preprocess
-    public void convolutionalPreprocess() {
-        transforms.add(
-            image -> {
-                return convolutionalPreprocess(image);
-            }
-        );
-    }
-
     // Rotate image: 90, 180, or 270 degrees
     public void randomRotation() {
         transforms.add(
@@ -54,7 +43,7 @@ public class Transform {
                 double[][][] rotatedImage = copy(image);
                 for (int c = 0; c < channels; c++) {
                     for (int r = 0; r < numRotations; r++) {
-                        rotatedImage[c] = Utility.transpose(rotatedImage[c]);
+                        rotatedImage[c] = DataUtility.transpose(rotatedImage[c]);
                     }
                 }
                 return rotatedImage;
@@ -82,6 +71,7 @@ public class Transform {
         );
     }
 
+
     private double[][][] copy(double[][][] arr) {
         int channels = arr.length;
         int height = arr[0].length;
@@ -95,79 +85,6 @@ public class Transform {
             }
         }
         return copy;
-    }
-    // Convolutional and maxpool preprocess
-    // Preprocess data with convolutions
-    public static double[][][] convolutionalPreprocess(double[][][] input) {
-        int channels = input.length;
-        int imageSize = input[0].length * input[0][0].length;
-        int numFilters = 10;
-        // increase image dimensions
-        double[][][][] images = new double[1][channels][imageSize][imageSize];
-        images[0] = input;
-        
-        // Declare convolutional filters 
-        double[][][] imageFilters = new double[][][]{
-
-            {{-1, 0, 1},
-             {-2, 0, 2},
-             {-1, 0, 1}},
-
-             {{-1, -2, -1},
-             {0, 0, 0},
-             {1, 2, 1}},
-
-             {{-1, 0, 1},
-             {-1, 0, 1},
-             {-1, 0, 1}},
-
-             {{-1, -1, -1},
-             {0, 0, 0},
-             {1, 1, 1}},
-
-             {{-3, 10, -3},
-             {0, 0, 0},
-             {3, 10, 3}},
-
-             {{-3, 0, 3},
-             {-10, 0, 10},
-             {-3, 0, 3}},
-
-             {{0, -1, 0},
-             {-1, 4, -1},
-             {0, -1, 0}},
-
-             {{0.0625, 0.125, 0.0625},
-             {0.125, 0.25, 0.125},
-             {0.0625, 0.125, 0.0625}},
-
-             {{0, -1, 0},
-             {-1, 5, -1},
-             {0, -1, 0}},
-
-             {{-1, -1, -1},
-             {-1, 9, -1},
-             {-1, -1, -1}},
-        };
-        double[][][][] filters = new double[numFilters][channels][3][3];
-        for (int i = 0; i < numFilters; i++) {
-            filters[i][0] = imageFilters[i];
-        }
-
-        // Apply convolutional filters
-        double[][][][] conv = new double[1][numFilters][imageSize][imageSize];
-        for (int k = 0; k < numFilters; k++) {
-            conv[0][k] = Utility.conv2D(images[0], filters[k], "same_padding");
-                    
-        }
-
-        // Apply max pooling 
-        double[][][][] max = new double[1][numFilters][imageSize / 2][imageSize / 2];
-        for (int k = 0; k < numFilters; k++) {
-            max[0][k] = Utility.maxPool2D(conv[0][k], 2, 2);
-        }
-
-        return max[0];
     }
 
     // Resize images by a certain method

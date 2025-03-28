@@ -2,7 +2,6 @@ import java.io.IOException;
 import java.util.Random;
 
 import JFlow.JMatrix;
-import JFlow.Utility;
 import JFlow.Layers.Layers;
 import JFlow.Layers.Sequential;
 import JFlow.data.Dataloader;

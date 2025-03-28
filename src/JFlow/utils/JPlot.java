@@ -33,6 +33,7 @@ public class JPlot {
         new ImageDisplay(displayImage, scaleFactor, String.valueOf(image.getLabel()));
     }
 
+    // Display an image directly from an array
     public static void displayImage(double[] image, int scaleFactor, int channels, String title) {
         int size = (int)Math.sqrt(image.length / channels);
         double[][][] displayImage = new double[size][size][channels];

@@ -76,6 +76,7 @@ public class JMatrix {
         return new JMatrix(matrix, newLength, newChannels, newHeight, newWidth);
     }
 
+// Statistics
     public double max() {
         double max = Double.NEGATIVE_INFINITY;
         for (double d : matrix) {
@@ -112,6 +113,7 @@ public class JMatrix {
         return Math.sqrt(sum);
     }
 
+    // Add Gaussian noise to each item
     public JMatrix addGaussianNoise(double mean, double stdDev) {
         double[] noisy = new double[size()];
         for (int i = 0; i < size(); i++) {
@@ -119,7 +121,7 @@ public class JMatrix {
         }
         return new JMatrix(noisy, length, channels, height, width);
     }
-    // Sum along rows for flat use cases
+    // Sum along rows for 2D use cases
     public double[] sum0(boolean scale) {
         int rows = length;
         int cols = channels * height * width;
@@ -135,7 +137,7 @@ public class JMatrix {
         });
         return sum;
     }
-    // Rotate by 90 degrees for flat use cases
+    // Rotate by 90 degrees for 2D cases
     public JMatrix transpose2D() {
         int oldHeight = length;
         int oldWidth = channels * height * width;
@@ -162,11 +164,12 @@ public class JMatrix {
             && height == other.height() && width == other.width();
     }
 
-    // Copy values or only dimensions
-    public JMatrix copy(boolean copyValues) {
-        if (copyValues) {
-            return new JMatrix(matrix.clone(), length, channels, height, width);
-        }
+    // Copy values
+    public JMatrix copy() {
+        return new JMatrix(matrix.clone(), length, channels, height, width);
+    }
+    // Return a new empty JMatrix with the same dimensions
+    public JMatrix copyDims() {
         return new JMatrix(new double[size()], length, channels, height, width);
     }
 
@@ -178,7 +181,7 @@ public class JMatrix {
         Arrays.fill(matrix, fillValue);
     }
 
-    // Perform matrix multiplication with another matrix
+    // Perform matrix multiplication with another matrix for 2D use cases
     public JMatrix dot(JMatrix secondMatrix, boolean scale) {
         // Treat channels * height * width as flat
         int m = length;

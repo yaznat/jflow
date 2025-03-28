@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 import JFlow.JMatrix;
-import JFlow.Utility;
 import JFlow.data.Dataloader;
 import JFlow.data.Image;
 import java.util.List;
@@ -112,7 +111,7 @@ public class Sequential {
             yBatches[count++] = labels;
         }
 
-        int numClasses = Utility.max(yBatches) + 1;
+        int numClasses = max(yBatches) + 1;
         // begin training
         for (int epoch = 1; epoch <= epochs; epoch++) {
             double accuracy = 0;
@@ -258,27 +257,6 @@ public class Sequential {
         return result;
     }
 
-// Find the max index per column in a flattened 2D array
-private int[] argmax0(double[] arr, int rows) {
-    int cols = arr.length / rows; // Infer the number of columns
-    int[] result = new int[cols];
-
-    for (int y = 0; y < cols; y++) {
-        double max = Double.NEGATIVE_INFINITY;
-        int index = 0;
-
-        for (int x = 0; x < rows; x++) {
-            int flatIndex = x * cols + y; // Convert 2D index to 1D
-            if (arr[flatIndex] > max) {
-                max = arr[flatIndex];
-                index = x;
-            }
-        }
-        result[y] = index;
-    }
-    return result;
-}
-
     public double getAccuracy(int[] predictions, int[] labels) {
         double sum = 0;
         for (int x = 0; x < predictions.length; x++) {
@@ -297,6 +275,16 @@ private int[] argmax0(double[] arr, int rows) {
         return layers.get(0).getGradient();
     }
 
+    // To automate the label reading process
+    public int max(int[][] arr) {
+        int max = 0;
+        for (int[] row : arr) {
+            for (int i : row) {
+                max = Math.max(max, i);
+            }
+        }
+        return max;
+    }
     // Save model weights to text files
     public void saveWeights(String filename) throws IOException {
         BufferedWriter writer = null;

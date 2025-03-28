@@ -3,7 +3,6 @@ package JFlow.Layers;
 import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
-import JFlow.Utility;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -46,6 +45,7 @@ class Conv2D extends Layer {
         dFilters = new JMatrix(numFilters, numChannels, filterSize, filterSize);
         dBiases = new JMatrix(numFilters, 1, 1, 1);
 
+        // Initialize vWeights and vBiases to 0
         vFilters = new JMatrix(numFilters, numChannels, filterSize, filterSize);
         vBiases = new JMatrix(numFilters, 1, 1, 1);
     }
@@ -58,8 +58,6 @@ class Conv2D extends Layer {
         this.inputWidth = input.width();
         this.numImages = input.length();
 
-        // System.out.println("input images, first 5 values: " + Arrays.toString(Arrays.copyOf(input, 28)));
-        // System.out.println("Max input: " + Utility.max(input));
 
         int outputSize = numImages * numFilters * inputHeight * inputWidth;
         if (A == null || A.size() != outputSize) {  
@@ -67,6 +65,8 @@ class Conv2D extends Layer {
         } else {
             A.fill(0);
         }
+
+        // Calculate forward output
 
         List<Callable<Void>> tasks = new ArrayList<>();
 
@@ -89,19 +89,19 @@ class Conv2D extends Layer {
             e.printStackTrace();
         }
 
-
+    // Implement conv dropout eventually!
         // if (super.getDropout() != null && training) {
         //     super.getDropout().newDropoutMaskConv(numFilters); // Generate new mask
         //     super.getDropout().applyDropoutConv(A, numImages, numFilters, height, width); // Apply dropout
         // }
 
-
-
-        // System.out.println("Before activation, first 5 values: " + Arrays.toString(Arrays.copyOf(A, 5)));
-
-        Z = getActivation().applyActivation(A);
-
-
+        // Apply activation
+        if (getActivation() != null) {
+            Z = getActivation().applyActivation(A);
+        } else {
+            Z = A;
+        }
+       
         if (getNextLayer() != null) {
             getNextLayer().forward(Z, training);
         }
@@ -109,28 +109,25 @@ class Conv2D extends Layer {
 
     @Override
     public void backward(JMatrix input, double learningRate) {
-        int height = input.height();
-        int width = input.width();
-
+        // Apply activation derivative
         if (getActivation() != null) {
             dZ = getActivation().applyDActivation(Z, input);
         } else {
             dZ = input;
         }
         
-
         if (getDebug()) {
             System.out.println("Max dZ: " + dZ.max());
             System.out.println("Max lastInput: " + lastInput.max());
         }
 
-
+    // Implement conv dropout eventually!
         // if (super.getDropout() != null) {
         //     super.getDropout().applyDropoutConv(dZ, numImages, numFilters, height, width);
         // }
 
 
-
+        // Calculate dFilters
         dFilters.fill(0);
 
         double[] dZmatrix = dZ.getMatrix();
@@ -158,7 +155,6 @@ class Conv2D extends Layer {
                         throw new ArrayIndexOutOfBoundsException("dFilters overflow: " + (filterIndex + filterSize * filterSize));
                     }
         
-                    // System.arraycopy(accumulatedSum, 0, dFilters, filterIndex, filterSize * filterSize);
                     System.arraycopy(accumulatedSum, 0, dFilters.getMatrix(), filterIndex, filterSize * filterSize);
                 }
             })).get();
@@ -166,14 +162,11 @@ class Conv2D extends Layer {
             e.printStackTrace();
         }
 
+        // Clip values
         dFilters.clip(-1.0, 1.0);
         if (super.getDebug()) 
             System.out.println("Max dFilters: " + dFilters.max());
 
-
-        // System.out.println("Conv2D Backprop: numChannels=" + numChannels + ", inputChannels=" + inputChannels);
-        // System.out.println("Expected dX size: " + (numImages * numChannels * inputHeight * inputWidth));
-        // System.out.println("Actual dX size: " + dX.length);
 
 
         // Calculate dBiases
@@ -188,15 +181,14 @@ class Conv2D extends Layer {
                     sum += dZmatrix[dZIdx + j];
                 }
             }
-            // dBiases[k] = sum;
             dBiasesMatrix[k] += sum;        
         });
+        // Clip values
         dBiases.clip(-0.1, 0.1);
 
         if (super.getDebug())
             System.out.println("Max dBiases: " + dBiases.max());
         
-        // System.exit(0);
 
         // Normalize for batch size
         for (int i = 0; i < dFilters.size(); i++) {
@@ -216,40 +208,43 @@ class Conv2D extends Layer {
             dX.fill(0);
         }
 
-            double[] dXmatrix = dX.getMatrix();
-            double[] filtersMatrix = filters.getMatrix();
+        double[] dXmatrix = dX.getMatrix();
+        double[] filtersMatrix = filters.getMatrix();
 
-            int outputHeight = inputHeight - filterSize + 1;
-            int outputWidth = inputWidth - filterSize + 1;
+        int outputHeight = inputHeight - filterSize + 1;
+        int outputWidth = inputWidth - filterSize + 1;
     
-            try {
-                pool.submit(() -> IntStream.range(0, numImages).parallel().forEach(i -> {
-                    for (int c = 0; c < numChannels; c++) {  
-                        double[] accumulatedGradients = new double[inputHeight * inputWidth];
+        try {
+            pool.submit(() -> IntStream.range(0, numImages).parallel().forEach(i -> {
+                for (int c = 0; c < numChannels; c++) {  
+                    double[] accumulatedGradients = new double[inputHeight * inputWidth];
     
-                        for (int k = 0; k < numFilters; k++) {
-                            int filterIndex = (k * numChannels + c) * filterSize * filterSize;  
-                            int dZIndex = (i * numFilters + k) * outputHeight * outputWidth;  
+                    for (int k = 0; k < numFilters; k++) {
+                        int filterIndex = (k * numChannels + c) * filterSize * filterSize;  
+                        int dZIndex = (i * numFilters + k) * outputHeight * outputWidth;  
                             
-                            applyConv2DGradient(accumulatedGradients, filtersMatrix, filterIndex, dZmatrix, dZIndex, true);
-                        }
-    
-                        int dXIdx = (i * numChannels + c) * inputHeight * inputWidth;  
-                        System.arraycopy(accumulatedGradients, 0, dXmatrix, dXIdx, inputHeight * inputWidth);
+                        applyConv2DGradient(accumulatedGradients, filtersMatrix, filterIndex, dZmatrix, dZIndex, true);
                     }
-                })).get();
-            } catch (InterruptedException | ExecutionException e) {
-                e.printStackTrace();
-            }
-            dX.clip(-5.0, 5.0);
-            if (super.getDebug())
-                System.out.println("Max dX: " + dX.max());
+    
+                    int dXIdx = (i * numChannels + c) * inputHeight * inputWidth;  
+                    System.arraycopy(accumulatedGradients, 0, dXmatrix, dXIdx, inputHeight * inputWidth);
+                }
+            })).get();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        // Clip values
+        dX.clip(-5.0, 5.0);
+        if (super.getDebug())
+            System.out.println("Max dX: " + dX.max());
+
         if (getPreviousLayer() != null) {
             getPreviousLayer().backward(dX, learningRate);
         }
     }
 
 
+    // Apply convolution to one image at a time
     private void applyConv2D(double[] output, int outIdx, double[] input, int inIdx, double[] filter, int filterIdx, double bias) {
         int pad = 0;
         int outputHeight, outputWidth;
@@ -258,9 +253,7 @@ class Conv2D extends Layer {
             pad = filterSize / 2;
             outputHeight = inputHeight;
             outputWidth = inputWidth;
-            // outputHeight = (inputHeight + 2 * pad - filterSize) / 2;
-            // outputWidth = (inputWidth + 2 * pad - filterSize) / 2; 
-        } else { // "valid" or no padding
+        } else { // valid, or no, padding
             outputHeight = inputHeight - filterSize + 1;
             outputWidth = inputWidth - filterSize + 1;
         }
@@ -297,47 +290,8 @@ class Conv2D extends Layer {
         }
     }
 
-    // private void applyConv2DGradient(double[] gradient, double[] input, int inIdx, double[] dZ, int dZIdx) {
-    //     Arrays.fill(gradient, 0);
 
-    //     // System.out.println("DEBUG: Inside applyConv2DGradient");
-    //     // System.out.println("  dZIndex: " + dZIdx);
-    //     // System.out.println("  dZ.length: " + dZ.length);
-
-    
-    //     int outputHeight = inputHeight - filterSize + 1;
-    //     int outputWidth = inputWidth - filterSize + 1;
-    
-    //     for (int fi = 0; fi < filterSize; fi++) {
-    //         for (int fj = 0; fj < filterSize; fj++) {
-    //             double sum = 0.0;
-    
-    //             for (int i = 0; i < outputHeight; i++) {
-    //                 for (int j = 0; j < outputWidth; j++) {
-    //                     int dZRow = i;
-    //                     int dZCol = j;
-    
-    //                     // Compute the correct index inside dZ
-    //                     int dZIdxOffset = (dZRow * outputWidth) + dZCol;
-    
-    //                     // Print debugging information
-    //                     if (dZIdx + dZIdxOffset >= dZ.length || dZIdxOffset >= outputHeight * outputWidth) {
-    //                         System.err.println("ERROR: dZ index out of bounds!");
-    //                         System.err.println("  dZIdx: " + dZIdx);
-    //                         System.err.println("  dZIdxOffset: " + dZIdxOffset);
-    //                         System.err.println("  dZ.length: " + dZ.length);
-    //                         throw new ArrayIndexOutOfBoundsException("dZ index out of bounds: " + (dZIdx + dZIdxOffset));
-    //                     }
-    
-    //                     sum += dZ[dZIdx + dZIdxOffset]; 
-    //                 }
-    //             }
-    
-    //             gradient[fi * filterSize + fj] += sum;
-    //         }
-    //     }
-    // }
-
+    // Calculate the conv gradient for one image at a time
     private void applyConv2DGradient(double[] gradient, double[] input, int inIdx, double[] dZ, int dZIdx, boolean flipFilter) {
         Arrays.fill(gradient, 0);
     
@@ -374,8 +328,6 @@ class Conv2D extends Layer {
             }
         }
     }
-    
-    
     
     private void updateFiltersWithMomentum(double[] filters, double[] dFilters, double[] vFilters, double learningRate) {
         IntStream.range(0, filters.length).parallel().forEach(i -> {

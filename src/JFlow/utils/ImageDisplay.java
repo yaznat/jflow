@@ -2,7 +2,6 @@ package JFlow.utils;
 
 import java.awt.Color;
 import java.awt.Graphics;
-import java.util.Arrays;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -38,7 +37,6 @@ class ImageDisplay extends JPanel{
     }
 
     public void paintComponent(Graphics g) {
-        // System.out.println(Arrays.deepToString(image));
         int channel1; int channel2; int channel3;
         // RGB
         if (image[0][0].length == 3) {

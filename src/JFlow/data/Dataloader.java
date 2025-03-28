@@ -152,37 +152,6 @@ public class Dataloader {
         return batches;
     }
 
-    // Return train images batched in a 2D array
-    // public double[][] getBatchesAsArray() {
-    //     List<List<Image>> batches = getBatches();
-    //     int numBatches = numBatches();
-    //     int batchSize = batches.get(0).size();
-    //     int imageSize = batches.get(0).get(0).getHeight() * 
-    //     batches.get(0).get(0).getWidth() * batches.get(0).get(0).numChannels();
-    //     double [][] batchArray = new double[numBatches][batchSize * imageSize];
-
-    //     boolean inconsistent = false;
-    //     for (int i = 0; i < numBatches; i++) {
-    //         double[] flatBatch = new double[batchSize * imageSize];
-    //         for (int j = 0; j < batchSize; j++) {
-    //             double[] flat = batches.get(i).get(j).getFlat();
-    //             try {
-    //                 System.arraycopy(flat, 0, flatBatch, j * imageSize, imageSize);
-    //             } catch (ArrayIndexOutOfBoundsException e) {
-    //                 // If data is not all of the same type, remove the batch for consistency
-    //                 batches.remove(i);
-    //                 i++;
-    //                 inconsistent = true;
-    //             }
-                
-    //         }   
-    //         if (!inconsistent) {
-    //             batchArray[i] = flatBatch;
-    //         }
-            
-    //     }
-    //     return batchArray;
-    // }
     public double[][] getBatchesAsArray() {
         List<List<Image>> batches = getBatches();
         int numBatches = getBatches().size();
