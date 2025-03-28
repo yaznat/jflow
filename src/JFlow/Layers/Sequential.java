@@ -181,7 +181,7 @@ public class Sequential {
         }
     
         // Forward pass
-        layers.getFirst().forward(flattened, false, batchSize, channels, imageHeight, imageWidth);
+        layers.getFirst().forward(new JMatrix(flattened, batchSize, channels, imageHeight, imageWidth), false);
     
         // Get predictions
         return argmax0(layers.getLast().getOutput());
@@ -202,24 +202,15 @@ public class Sequential {
         return oneHot;
     }
 
-    public double[][] forward(double[] images, boolean training, 
-        int numImages, int channels, int height, int width) {
-        layers.getFirst().forward(images, training, numImages, channels, height, width);
-        return layers.getLast().getOutput();
-    }
-
-    public double[][] forward(double[][] images, boolean training) {
+    public JMatrix forward(JMatrix images, boolean training) {
         layers.getFirst().forward(images, training);
         return layers.getLast().getOutput();
     }
 
-    public void backward(double[] yTrue, double learningRate, int batchSize, int channels, int height, int width) {
-        layers.getLast().backward(yTrue, learningRate, batchSize, channels, height, width);
-    }
-
-    public void backward(double[][] yTrue, double learningRate) {
+    public void backward(JMatrix yTrue, double learningRate) {
         layers.getLast().backward(yTrue, learningRate);
     }
+
     public void backward(int batchSize, double learningRate, int label, int numClasses) {
         int[] labels = new int[batchSize];
         Arrays.fill(labels, label);
@@ -228,20 +219,16 @@ public class Sequential {
             layers.getLast().backward(oneHotEncode(labels, numClasses, true), learningRate);
         }
         else {
-            double[][] expandedLabels;
-            if (transpose) {
-                expandedLabels = new double[1][labels.length];
-                for (int i = 0; i < labels.length; i++) {
-                    expandedLabels[0][i] = label;
-                }
-                
-            } else {
-                expandedLabels = new double[labels.length][1];
-                for (int i = 0; i < labels.length; i++) {
-                    expandedLabels[i][0] = label;
-                }
+            double[] expandedLabels;
+            expandedLabels = new double[labels.length];
+            for (int i = 0; i < labels.length; i++) {
+                expandedLabels[i] = label;
             }
-            layers.getLast().backward(expandedLabels, learningRate);
+            JMatrix labelMatrix = new JMatrix(expandedLabels, 1, batchSize, 1, 1);
+            if (transpose) {
+                labelMatrix = labelMatrix.transpose2D();
+            }
+            layers.getLast().backward(labelMatrix, learningRate);
         }
     }
     
@@ -302,11 +289,11 @@ private int[] argmax0(double[] arr, int rows) {
         return sum / predictions.length;
     }
 
-    public double[][] getLayerOutput(int layerIndex) {
+    public JMatrix getLayerOutput(int layerIndex) {
         return layers.get(layerIndex).getOutput();
     }
 
-    public double[][] getLayerGradient(int layerIndex) {
+    public JMatrix getLayerGradient(int layerIndex) {
         return layers.get(0).getGradient();
     }
 
@@ -329,7 +316,9 @@ private int[] argmax0(double[] arr, int rows) {
                             filename + "/W"  + numDenseSaved + "_" + filename + ".txt", false));
                 }
                 double[] weights = ((Dense)l).getWeights();
-                writer.write(arrToString(weights));
+                for (double d : weights) {
+                    writer.write(d + ",");
+                }
                 writer.flush();
                 writer.close();
                 double[] biases = ((Dense)l).getBiases();

@@ -4,7 +4,7 @@ import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
 
-public class Tanh extends Activation{
+class Tanh extends Activation{
 
     @Override
     JMatrix applyActivation(JMatrix input) {
@@ -18,7 +18,7 @@ public class Tanh extends Activation{
     }
 
     @Override
-    JMatrix applyDActivation(JMatrix gradient, JMatrix Z) {
+    JMatrix applyDActivation(JMatrix Z, JMatrix gradient) {
         double[] dZ = new double[gradient.size()];
         double[] gMatrix = gradient.getMatrix();
         double[] zMatrix = Z.getMatrix();

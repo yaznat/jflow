@@ -17,7 +17,7 @@ abstract class Layer {
     private Dropout dropout;
     private boolean debug;
 
-    public Layer(int numTrainableParameters, String nameID) {
+    protected Layer(int numTrainableParameters, String nameID) {
         this.numTrainableParameters = numTrainableParameters;
         this.nameID = nameID;
     }

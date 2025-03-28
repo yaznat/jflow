@@ -6,11 +6,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
 
+import JFlow.JMatrix;
 import JFlow.Utility;
 
 class Dropout {
     private double alpha;
-    private double[][] dropoutMask;
+    private JMatrix dropoutMask;
     private double[] dropoutMaskFlat;
     public Dropout(double alpha) {
         this.alpha = alpha;
@@ -19,13 +20,14 @@ class Dropout {
         return alpha;
     }
     // Set dropout mask. Return usually not needed.
-    public double[][] newDropoutMask(int inputSize, int outputSize) {
-        dropoutMask = new double[inputSize][outputSize];
+    public JMatrix newDropoutMask(int inputSize, int outputSize) {
+        double[] dropoutMaskMatrix = new double[inputSize * outputSize];
         for (int i = 0; i < inputSize; i++) {
             for (int j = 0; j < outputSize; j++) {
-                dropoutMask[i][j] = (Math.random() < alpha) ? 0 : 1;
+                dropoutMaskMatrix[i * outputSize + j] = (Math.random() < alpha) ? 0 : 1;
             }
         }
+        dropoutMask = new JMatrix(dropoutMaskMatrix, inputSize, outputSize, 1, 1);
         return dropoutMask;
     }
     // Set dropout mask (flat). Return usually not needed.
@@ -69,8 +71,8 @@ class Dropout {
     }
 
     // apply dropout in both forward and backward propagation
-    public double[][] applyDropout(double[][] layer)  {
+    public JMatrix applyDropout(JMatrix layer)  {
         // multiply with max and scale nonzero results
-        return Utility.multiply(Utility.multiply(dropoutMask, layer), 1 / (1 - alpha));
+        return dropoutMask.multiply(layer);
     }
 }

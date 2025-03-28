@@ -62,6 +62,26 @@ public class Transform {
         );
     }
 
+    // Temporary simplified version for increasing size
+    public void resize(int height, int width) {
+        transforms.add(
+            image -> {
+                int oldHeight = image[0].length;
+                int oldWidth = image[0][0].length;
+                int channels = image.length;
+                double[][][] resized = new double[channels][height][width];
+                for (int c = 0; c < channels; c++) {
+                    for (int h = 0; h < oldHeight; h++) {
+                        for (int w = 0; w < oldWidth; w++) {
+                            resized[c][h][w] = image[c][h][w];
+                        }
+                    }
+                }
+                return resized;
+            }
+        );
+    }
+
     private double[][][] copy(double[][][] arr) {
         int channels = arr.length;
         int height = arr[0].length;

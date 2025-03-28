@@ -66,39 +66,39 @@ public class Image {
     }
 
 
-    // // Flatten the image to a 1D vector
-    // public double[] getFlat() {
-    //     int channels = xData.length;
-    //     int height = xData[0].length;
-    //     int width = xData[0][0].length;
-    //     double[] flat = new double[channels * 
-    //         height * width];
-    //     int index = 0;
-    //     for (int c = 0; c < channels; c++) {
-    //         for (int h = 0; h < height; h++) {
-    //             for (int w = 0; w < width; w++) {
-    //                 flat[index++] = xData[c][h][w]; 
-    //             }
-    //         }
-    //     }
-    //     return flat;
-    // }
-    // Flatten by grouping RGB values together
+    // Flatten the image to a 1D vector
     public double[] getFlat() {
         int channels = xData.length;
         int height = xData[0].length;
         int width = xData[0][0].length;
-        double[] flat = new double[channels * height * width];
+        double[] flat = new double[channels * 
+            height * width];
         int index = 0;
-        for (int h = 0; h < height; h++) {
-            for (int w = 0; w < width; w++) {
-                for (int c = 0; c < channels; c++) {
-                    flat[index++] = xData[c][h][w];
+        for (int c = 0; c < channels; c++) {
+            for (int h = 0; h < height; h++) {
+                for (int w = 0; w < width; w++) {
+                    flat[index++] = xData[c][h][w]; 
                 }
             }
         }
         return flat;
     }
+    // // Flatten by grouping RGB values together
+    // public double[] getFlat() {
+    //     int channels = xData.length;
+    //     int height = xData[0].length;
+    //     int width = xData[0][0].length;
+    //     double[] flat = new double[channels * height * width];
+    //     int index = 0;
+    //     for (int h = 0; h < height; h++) {
+    //         for (int w = 0; w < width; w++) {
+    //             for (int c = 0; c < channels; c++) {
+    //                 flat[index++] = xData[c][h][w];
+    //             }
+    //         }
+    //     }
+    //     return flat;
+    // }
 
 
     

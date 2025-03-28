@@ -1,13 +1,10 @@
 package JFlow.Layers;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
 
-public class Upsampling2D extends Layer{
+class Upsampling2D extends Layer{
     private int scaleFactor;
     private double[] output = new double[0], gradient = new double[0];
 

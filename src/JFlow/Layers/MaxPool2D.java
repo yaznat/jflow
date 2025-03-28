@@ -1,14 +1,15 @@
 package JFlow.Layers;
 
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
 import JFlow.Utility;
 
-public class MaxPool2D extends Layer {
+class MaxPool2D extends Layer {
     private int poolSize, stride;
     private int numImages, channels, imageHeight, imageWidth, outputHeight, outputWidth;
-    private double[] output, gradient, lastInput;
+    private JMatrix output, gradient, lastInput, maxPositions;
 
     protected MaxPool2D(int poolSize, int stride) {
         super(0, "max_pool_2d");
@@ -23,14 +24,20 @@ public class MaxPool2D extends Layer {
         this.numImages = input.length();
         this.channels = input.channels();
 
-        double[] inputMatrix = input.getMatrix();
-        lastInput = input.getMatrix();
-
-        // Retrieve dimensions
+        // Calculate output dimensions
         outputHeight = (imageHeight - poolSize) / stride + 1;
         outputWidth = (imageWidth - poolSize) / stride + 1;
+ 
+        // Save time by avoiding memory reassignment if possible
+        if (output == null || !input.isSameShapeAs(lastInput)) {
+            output = new JMatrix(numImages, channels, outputHeight, outputWidth);
+        } else {
+            output.fill(0);
+        }
+        lastInput = input;
 
-        output = new double[numImages * channels * outputHeight * outputWidth];
+        double[] inputMatrix = input.getMatrix();
+        double[] outputMatrix = output.getMatrix();
 
         // Parallel max pooling
         IntStream.range(0, numImages).parallel().forEach(i -> {
@@ -38,12 +45,12 @@ public class MaxPool2D extends Layer {
                 int inputOffset = i * channels * imageHeight * imageWidth + c * imageHeight * imageWidth;
                 int outputOffset = i * channels * outputHeight * outputWidth + c * outputHeight * outputWidth;
 
-                maxPool2D(inputMatrix, inputOffset, output, outputOffset);
+                maxPool2D(inputMatrix, inputOffset, outputMatrix, outputOffset);
             }
         });
 
         if (getNextLayer() != null) {
-            getNextLayer().forward(new JMatrix(output, numImages, channels, outputHeight, outputWidth), training);
+            getNextLayer().forward(new JMatrix(outputMatrix, numImages, channels, outputHeight, outputWidth), training);
         }
     }
 
@@ -70,8 +77,15 @@ public class MaxPool2D extends Layer {
 
     @Override
     public void backward(JMatrix dOutput, double learningRate) {
-        gradient = new double[lastInput.length];
+        // Save time by avoiding memory reassignment if possible
+        if (gradient == null) {
+            gradient = lastInput.copy(false); // Use lastInput dimensions
+        } else {
+            gradient.fill(0);
+        }
+        double[] gradientMatrix = gradient.getMatrix();
         double[] dOutputMatrix = dOutput.getMatrix();
+        double[] lastInputMatrix = lastInput.getMatrix();
         // System.out.println("Gradient length: " + gradient.length); 
         // System.out.println("dOutput length: " + dOutput.length); 
         // int expectedGradientSize = dOutput.length * poolSize * poolSize;
@@ -84,21 +98,18 @@ public class MaxPool2D extends Layer {
                 int inputOffset = i * channels * imageHeight * imageWidth + c * imageHeight * imageWidth;
                 int outputOffset = i * channels * outputHeight * outputWidth + c * outputHeight * outputWidth;
 
-                backpropMaxPool2D(dOutputMatrix, inputOffset, outputOffset); 
+                backpropMaxPool2D(dOutputMatrix, inputOffset, gradientMatrix, outputOffset, lastInputMatrix); 
             }
         });
         if (super.getDebug()) 
-            System.out.println("MaxPool2D Max gradient " + Utility.max(gradient));
+            System.out.println("MaxPool2D Max gradient " + gradient.max());
 
         if (getPreviousLayer() != null) {
-            // if (getPreviousLayer() instanceof Dense) {
-            //     learningRate *= 0.85;
-            // }
-            getPreviousLayer().backward(new JMatrix(gradient, numImages, channels, imageHeight, imageWidth), learningRate);
+            getPreviousLayer().backward(new JMatrix(gradientMatrix, numImages, channels, imageHeight, imageWidth), learningRate);
         }
     }
 
-    private void backpropMaxPool2D(double[] dOutput, int inputOffset, int outputOffset) {
+    private void backpropMaxPool2D(double[] dOutput, int inputOffset, double[] gradient, int outputOffset, double[] lastInput) {
         for (int sX = 0; sX < outputHeight; sX++) {
             for (int sY = 0; sY < outputWidth; sY++) {
                 double max = Double.NEGATIVE_INFINITY;

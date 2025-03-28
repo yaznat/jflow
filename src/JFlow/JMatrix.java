@@ -1,9 +1,12 @@
 package JFlow;
+import java.util.Arrays;
+import java.util.Random;
 import java.util.stream.IntStream;
 
 public class JMatrix {
     private double[] matrix;
     private int length, channels, height, width;
+    private Random rand = new Random();
 
     public JMatrix(int length, int channels, int height, int width) {
         matrix = new double[length * channels * height * width];
@@ -51,12 +54,16 @@ public class JMatrix {
     public int width () {
         return width;
     }
-    public void setShape(int[] shape) {
-        int newLength = shape[0];
-        int newChannels = shape[1];
-        int newHeight = shape[2];
-        int newWidth = shape[3];
-
+    // Not recommended when speed is necessary;
+    public double[] get(int lengthIndex) {
+        int sliceSize = channels * height * width;
+        int startIdx = lengthIndex * sliceSize;  
+        double[] slice = new double[sliceSize];
+        System.arraycopy(matrix, startIdx, slice, 0, sliceSize);
+        return slice;
+    }
+    
+    public JMatrix reshape(int newLength, int newChannels, int newHeight, int newWidth) {
         int numItems = size();
         int newNumItems = newLength * newChannels * newHeight * newWidth;
 
@@ -66,11 +73,9 @@ public class JMatrix {
                 + numItems + " Reshape: " + newNumItems);
         }
 
-        length = newLength;
-        channels = newChannels;
-        height = newHeight;
-        width = newWidth;
+        return new JMatrix(matrix, newLength, newChannels, newHeight, newWidth);
     }
+
     public double max() {
         double max = Double.NEGATIVE_INFINITY;
         for (double d : matrix) {
@@ -105,6 +110,14 @@ public class JMatrix {
             sum += d * d;
         }
         return Math.sqrt(sum);
+    }
+
+    public JMatrix addGaussianNoise(double mean, double stdDev) {
+        double[] noisy = new double[size()];
+        for (int i = 0; i < size(); i++) {
+            noisy[i] = matrix[i] + rand.nextGaussian() * stdDev + mean;
+        }
+        return new JMatrix(noisy, length, channels, height, width);
     }
     // Sum along rows for flat use cases
     public double[] sum0(boolean scale) {
@@ -143,8 +156,26 @@ public class JMatrix {
         // Assign all features to channels for simplicity
         return new JMatrix(rotated, newHeight, newWidth, 1, 1);
     }
+    // Compare shape to another JMatrix
+    public boolean isSameShapeAs(JMatrix other) {
+        return length == other.length() && channels == other.channels()
+            && height == other.height() && width == other.width();
+    }
+
+    // Copy values or only dimensions
+    public JMatrix copy(boolean copyValues) {
+        if (copyValues) {
+            return new JMatrix(matrix.clone(), length, channels, height, width);
+        }
+        return new JMatrix(new double[size()], length, channels, height, width);
+    }
+
     public void clip(double min, double max) {
-        
+        Arrays.parallelSetAll(matrix, i -> Math.max(min, Math.min(max, matrix[i])));
+    }
+
+    public void fill(double fillValue) {
+        Arrays.fill(matrix, fillValue);
     }
 
     // Perform matrix multiplication with another matrix
@@ -255,6 +286,30 @@ public class JMatrix {
         return new JMatrix(result, length, channels, height, width);
     }
 
+
+        // Divide this matrix by another matrix
+        public JMatrix divide(JMatrix secondMatrix) {
+            // Check for unequal number of elements
+            if (size() != secondMatrix.size()) {
+                throw new IllegalArgumentException(
+                    "Sizes " + size() + " and " + 
+                    secondMatrix.size() + 
+                    " cannot be broadcast together."
+                );
+            }
+            // Otherwise, assume proper feature lineup
+            int size = size();
+            double[] matrix1 = matrix;
+            double[] matrix2 = secondMatrix.getMatrix();
+            double[] result = new double[size];
+    
+            IntStream.range(0, size).parallel().forEach(i -> {
+                result[i] = matrix1[i] / matrix2[i];
+            });
+    
+            return new JMatrix(result, length, channels, height, width);
+        }
+
     // Subtract a scalar from this matrix
     public JMatrix subtract(double scalar) {
         int size = size();
@@ -286,6 +341,18 @@ public class JMatrix {
 
         IntStream.range(0, size).parallel().forEach(i -> {
             result[i] = matrix[i] * scalar;
+        });
+
+        return new JMatrix(result, length, channels, height, width);
+    }
+
+    // Divide this matrix by a scalar
+    public JMatrix divide(double scalar) {
+        int size = size();
+        double[] result = new double[size];
+
+        IntStream.range(0, size).parallel().forEach(i -> {
+            result[i] = matrix[i] / scalar;
         });
 
         return new JMatrix(result, length, channels, height, width);

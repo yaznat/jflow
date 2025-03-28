@@ -3,8 +3,10 @@ package JFlow.Layers;
 import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
 
+import JFlow.JMatrix;
+
 class Reshape extends Layer{
-    private int newChannels, newHeight, newWidth, oldSize;
+    private int newChannels, newHeight, newWidth, oldChannels, oldHeight, oldWidth, oldLength;
 
     public Reshape(int channels, int height, int width) {
         super(0, "reshape");
@@ -15,47 +17,30 @@ class Reshape extends Layer{
     }
 
     @Override
-    public void forward(double[] input, boolean training, int numImages, int channels, int height, int width) {
-        this.oldSize = channels * height * width;
+    public void forward(JMatrix input, boolean training) {
+        this.oldLength = input.length();
+        this.oldChannels = input.channels();
+        this.oldHeight = input.height();
+        this.oldWidth = input.width();
 
-        if (oldSize != newChannels * newHeight * newWidth) {
-            throw new IllegalArgumentException("Reshape size mismatch: expected " +
-                    (newChannels * newHeight * newWidth) + " but got " + oldSize);
+
+        if (getPreviousLayer() instanceof Dense) {
+            input = input.transpose2D();
         }
 
         if (getNextLayer() != null) {
-            getNextLayer().forward(input, training, numImages, newChannels, newHeight, newWidth);
+            getNextLayer().forward(input.reshape(input.length(), newChannels, newHeight, newWidth), training);
         }
     }
 
-    @Override
-    public void forward(double[][] input, boolean training) {
-        int batchSize = input[0].length;  // Assuming input is transposed (channels * height * width, batchSize)
-        int numChannels = 1;  // Assuming grayscale images
-        int spatialSize = input.length;  // height * width
-        int height = (int) Math.sqrt(spatialSize);
-        int width = height;
-    
-        double[] flattened = new double[batchSize * numChannels * height * width];
-    
-        ForkJoinPool pool = new ForkJoinPool();
-        pool.submit(() -> 
-            IntStream.range(0, batchSize).parallel().forEach(i -> {
-                for (int j = 0; j < spatialSize; j++) {
-                    flattened[i * spatialSize + j] = input[j][i]; // Transpose back
-                }
-            })
-        ).join();
-        pool.shutdown();
-        pool.close();
-    
-        forward(flattened, training, batchSize, numChannels, height, width);
-    }
     
 
     @Override
-    public void backward(double[] input, double learningRate, int batchSize, int channels, int height, int width) {
-        int outputSize = batchSize * channels * height * width;
+    public void backward(JMatrix input, double learningRate) {
+        int batchSize = input.length();
+        int channels = input.channels();
+        int height = input.height();
+        int width = input.width();
         
         if (super.getDebug()) {
             System.out.println("reshape");
@@ -64,39 +49,25 @@ class Reshape extends Layer{
             System.out.println("Input height:" + height);
             System.out.println("Input width:" + width);
         }
-        
-        if (input.length != outputSize) {
-            throw new IllegalArgumentException("Input gradient size mismatch in Reshape layer.");
-        }
 
-        // Restore original shape (before forward reshape)
-        double[][] output = new double[batchSize][oldSize]; // changed from chanels * height * width (incorrect) to oldsize
-
-        // Parallel processing for performance
-        IntStream.range(0, batchSize).parallel().forEach(i -> 
-            System.arraycopy(input, i * oldSize, output[i], 0, oldSize)
-        );
+        // if (getPreviousLayer() instanceof Dense) {
+        //     input = input.transpose2D();
+        // }
 
         // Pass to the previous layer
         if (getPreviousLayer() != null) {
-            getPreviousLayer().backward(output, learningRate);
+            getPreviousLayer().backward(input.reshape(oldLength, oldChannels, oldHeight, oldWidth), learningRate);
         }
     }
 
     @Override
-    public double[][] getOutput() {
+    public JMatrix getOutput() {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'getOutput'");
     }
 
     @Override
-    public void backward(double[][] input, double learningRate) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'backward'");
-    }
-
-    @Override
-    public double[][] getGradient() {
+    public JMatrix getGradient() {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'getGradient'");
     }

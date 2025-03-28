@@ -54,7 +54,7 @@ class Dense extends Layer{
 
     @Override
     public void forward(JMatrix input, boolean training) {
-        if (getPreviousLayer() == null) {
+        if (getPreviousLayer() == null || !(getPreviousLayer() instanceof Dense)) {
             input = input.transpose2D();
         }
         lastInput = input;
@@ -69,14 +69,19 @@ class Dense extends Layer{
 
         applyBiasByRow(A, biases); 
 
-        Z = getActivation().applyActivation(A);
+        if (getActivation() != null) {
+            Z = getActivation().applyActivation(A);
+        } else {
+            Z = A;
+        }
+        
 
 
 
-        // if (getDropout() != null && training) {
-        //     getDropout().newDropoutMask(Z.length, Z[0].length); // Generate new mask
-        //     Z = getDropout().applyDropout(Z);
-        // }
+        if (getDropout() != null && training) {
+            getDropout().newDropoutMask(Z.length(), Z.channels() * Z.height() * Z.width()); // Generate new mask
+            Z = getDropout().applyDropout(Z);
+        }
 
         if (getNextLayer() != null) {
             getNextLayer().forward(Z, training);
@@ -84,14 +89,25 @@ class Dense extends Layer{
     }
     @Override
     public void backward(JMatrix gradient, double learningRate) {
-        // System.out.println("Max dense input: " + Utility.max(input));
+
+        if (getDebug()) {
+            System.out.println("Dense");
+            System.out.println("Input images:" + gradient.length());
+            System.out.println("Input channels:" + gradient.channels());
+            System.out.println("Input height:" + gradient.height());
+            System.out.println("Input width:" + gradient.width());
+        }
 
         // Calculate dActivation
-        dZ = getActivation().applyDActivation(Z, gradient);
+        if (getActivation() != null) {
+            dZ = getActivation().applyDActivation(Z, gradient);
+        } else {
+            dZ = gradient;
+        }
+        if (super.getDropout() != null) {
+            dZ = getDropout().applyDropout(dZ);
+        }
 
-        // if (super.getDropout() != null) {
-        //     dZ = super.getDropout().applyDropout(dZ);
-        // }
 
         try {
             dWeights = dZ.dot(lastInput.transpose2D(), true);
@@ -126,7 +142,6 @@ class Dense extends Layer{
         // }
         // dBiases = Utility.clip(dBiases, -0.2, 0.2);
 
-        // System.out.println(Utility.max(new double[][]{dBiases}));
 
         // Compute velocity update
         vWeights = vWeights.multiply(beta).add(dWeights.multiply(1 - beta));
