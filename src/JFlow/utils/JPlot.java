@@ -47,8 +47,4 @@ public class JPlot {
         }
         new ImageDisplay(displayImage, scaleFactor, title);
     }
-    // Opens a JFrame with a confusion matrix
-    public static void displayConfusionMatrix(int[] predictions, int[] labels) {
-        new ConfusionMatrix(predictions, labels);
-    }
 }

@@ -3,70 +3,86 @@ import JFlow.Layers.Layers;
 import JFlow.Layers.Sequential;
 import JFlow.data.Dataloader;
 import JFlow.data.Transform;
-import JFlow.utils.JPlot;
+import JFlow.utils.Metrics;
 
+/*
+ * In this demo, we train a convolutional neural network 
+ * to distinguish cars from trucks, using the Cifar 10 dataset.
+ */
 public class CNNDemo {
     public static void main(String[] args) throws IOException {
+        // Initialize the dataloader
         Dataloader loader = new Dataloader();
 
-        loader.addImagesWithLabel("datasets/cifar10-64/class0", 0, 0.3);
-        loader.addImagesWithLabel("datasets/cifar10-64/class1", 1, 0.3);
-        loader.addImagesWithLabel("datasets/cifar10-64/class2", 2, 0.3);
-        loader.addImagesWithLabel("datasets/cifar10-64/class3", 3, 0.3);
-        loader.addImagesWithLabel("datasets/cifar10-64/class4", 4, 0.3);
-        loader.addImagesWithLabel("datasets/cifar10-64/class5", 5, 0.3);
-        loader.addImagesWithLabel("datasets/cifar10-64/class6", 6, 0.3);
-        loader.addImagesWithLabel("datasets/cifar10-64/class7", 7, 0.3);
-        loader.addImagesWithLabel("datasets/cifar10-64/class8", 8, 0.3);
-        loader.addImagesWithLabel("datasets/cifar10-64/class9", 9, 0.3);
+        // Declare labels to use a train labels reference csv, we only want cars and trucks
+        String[] labelsToKeep = {"automobile","truck"};
 
+        // Load a certain percentage of images from a directory with labels from a train labels reference csv, grayscale = false
+        loader.loadFromDirectory("datasets/cifar10", labelsToKeep, "datasets/CifarTrainLabels.csv", 1.0, false);
+        // loader.loadFromCSV("datasets/mouse_drawn_digits_2.txt", true, 1.0);
+
+
+        // Initialize the transform
         Transform transform = new Transform();
-        transform.normalizeTanH();
+        transform.normalizeTanH(); // Normalize to [-1, 1]
 
+        // Apply the transform to images in the dataloader
         loader.applyTransform(transform);
 
+        // Shuffle and split with a set seed
         loader.setSeed(42);
         loader.trainTestSplit(0.95);
 
-        loader.batch(64);
+        // Declare batch size
+        loader.batch(32);
 
-        int numClasses = 10;
-        int colorChannels = 3;
 
+        int numClasses = 2; // Binary classification
+        int colorChannels = 3; // RGB images
+        int imageSize = 32;
+
+        // Initialize the model
         Sequential model = new Sequential();
 
-        model.add(Layers.Conv2D(64, colorChannels, 3, "same_padding"));
+        model.add(Layers.Conv2D(64, colorChannels, 3, "same_padding")); // (numFilters, inputChannels, filterSize, padding)
         model.add(Layers.LeakyReLU(0.1));
-        model.add(Layers.MaxPool2D(2, 2));
+        model.add(Layers.MaxPool2D(2, 2)); // (poolSize, stride)
 
         model.add(Layers.Conv2D(128, 64, 3, "same_padding"));
         model.add(Layers.LeakyReLU(0.1));
         model.add(Layers.MaxPool2D(2, 2)); 
 
-        model.add(Layers.Dense(16 * 16 * 128, 128));
+        model.add(Layers.Dense((imageSize / 4) * (imageSize / 4) * 128, 256)); // (inputSize, outputSize)
         model.add(Layers.Dropout(0.3));
         model.add(Layers.LeakyReLU(0.1));
 
-        model.add(Layers.Dense(128, numClasses));
+        model.add(Layers.Dense(256, numClasses));
         model.add(Layers.Softmax());
 
-        // model.loadWeights("CNN Cifar64 64.128");
+
+    // load trained weights
+        // model.loadWeights("Cifar CNN Trucks vs Automobiles 64.128");
 
 
-        double oldAccuracy = model.getAccuracy(model.predict(loader.getTestImages()), loader.getTestLabels());
+        // Use the Metrics class for model metrics
+        double oldAccuracy = Metrics.getAccuracy(model.predict(loader.getTestImages()), loader.getTestLabels());
 
-
+        /*
+         * Automatically train the model on batches in the dataloader.
+         * Specify number of epochs and learning rate.
+         */
         model.train(loader, 10, 0.01);
 
         int[] predictions = model.predict(loader.getTestImages());
 
-        JPlot.displayConfusionMatrix(predictions, loader.getTestLabels());
+        // Display a confusion matrix in a new JFrame
+        Metrics.displayConfusionMatrix(predictions, loader.getTestLabels());
 
-        double newAccuracy = model.getAccuracy(predictions, loader.getTestLabels());
+        double newAccuracy = Metrics.getAccuracy(predictions, loader.getTestLabels());
         System.out.println("Test accuracy:" + newAccuracy);
 
         if (newAccuracy > oldAccuracy) {
-            model.saveWeights("CNN Cifar64 64.128");
+            model.saveWeights("Cifar CNN Trucks vs Automobiles 64.128"); // Save weights to .txt files
         }
     }
 }

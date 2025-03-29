@@ -19,6 +19,7 @@ CPU based machine learning library in Java
      - Conv2D  
      - MaxPool2D  
      - Upsampling2D  
+     - Reshape
 ##  -> Currently supported activations:  
      - ReLU  
      - LeakyReLU  
@@ -30,4 +31,4 @@ CPU based machine learning library in Java
 ##  -> JMatrix data type  
      - Custom data type to aid in low level use cases.  
      - Stores dimensional information and provides statistics.  
-     - Offers operations such as transpose2D and broadcastable mathematic functions.  
+     - Offers operations such as transpose2D and broadcastable mathmatic functions.  

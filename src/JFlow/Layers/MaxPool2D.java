@@ -65,12 +65,20 @@ class MaxPool2D extends Layer {
         double[] lastInputMatrix = lastInput.getMatrix();
 
         // Calculate maxpool gradients
+        // IntStream.range(0, numImages).parallel().forEach(i -> {
+        //     for (int c = 0; c < channels; c++) {
+        //         int inputOffset = i * channels * imageHeight * imageWidth + c * imageHeight * imageWidth;
+        //         int outputOffset = i * channels * outputHeight * outputWidth + c * outputHeight * outputWidth;
+
+        //         backpropMaxPool2D(dOutputMatrix, inputOffset, gradientMatrix, outputOffset, lastInputMatrix); 
+        //     }
+        // });
         IntStream.range(0, numImages).parallel().forEach(i -> {
             for (int c = 0; c < channels; c++) {
                 int inputOffset = i * channels * imageHeight * imageWidth + c * imageHeight * imageWidth;
                 int outputOffset = i * channels * outputHeight * outputWidth + c * outputHeight * outputWidth;
-
-                backpropMaxPool2D(dOutputMatrix, inputOffset, gradientMatrix, outputOffset, lastInputMatrix); 
+        
+                backpropMaxPool2D(dOutputMatrix, outputOffset, gradientMatrix, inputOffset, lastInputMatrix); 
             }
         });
         if (super.getDebug()) 
@@ -104,27 +112,55 @@ class MaxPool2D extends Layer {
     }
 
     // Calculate the max pool gradient for one image
-    private void backpropMaxPool2D(double[] dOutput, int inputOffset, double[] gradient, int outputOffset, double[] lastInput) {
+    // private void backpropMaxPool2D(double[] dOutput, int inputOffset, double[] gradient, int outputOffset, double[] lastInput) {
+    //     for (int sX = 0; sX < outputHeight; sX++) {
+    //         for (int sY = 0; sY < outputWidth; sY++) {
+    //             double max = Double.NEGATIVE_INFINITY;
+    //             int maxIndex = 0;
+
+    //             for (int poolX = 0; poolX < poolSize; poolX++) {
+    //                 for (int poolY = 0; poolY < poolSize; poolY++) {
+    //                     int x = sX * stride + poolX;
+    //                     int y = sY * stride + poolY;
+    //                     int idx = inputOffset + x * imageWidth + y;
+
+    //                     if (lastInput[idx] > max) { 
+    //                         max = lastInput[idx];
+    //                         maxIndex = idx;
+    //                     }
+    //                 }
+    //             }
+
+    //             // Pass the gradient only to the max index
+    //             gradient[maxIndex] += dOutput[outputOffset + sX * outputWidth + sY];
+    //         }
+    //     }
+    // }
+    private void backpropMaxPool2D(double[] dOutput, int dOutputOffset, double[] gradient, int gradientOffset, double[] lastInput) {
         for (int sX = 0; sX < outputHeight; sX++) {
             for (int sY = 0; sY < outputWidth; sY++) {
                 double max = Double.NEGATIVE_INFINITY;
-                int maxIndex = 0;
-
+                int maxX = 0, maxY = 0;
+    
+                // Find max position
                 for (int poolX = 0; poolX < poolSize; poolX++) {
                     for (int poolY = 0; poolY < poolSize; poolY++) {
                         int x = sX * stride + poolX;
                         int y = sY * stride + poolY;
-                        int idx = inputOffset + x * imageWidth + y;
-
-                        if (lastInput[idx] > max) { 
-                            max = lastInput[idx];
-                            maxIndex = idx;
+                        int inputIdx = gradientOffset + x * imageWidth + y;
+    
+                        if (lastInput[inputIdx] > max) { 
+                            max = lastInput[inputIdx];
+                            maxX = x;
+                            maxY = y;
                         }
                     }
                 }
-
-                // Pass the gradient only to the max index
-                gradient[maxIndex] += dOutput[outputOffset + sX * outputWidth + sY];
+    
+                // Pass the gradient only to the max position
+                int maxIdx = gradientOffset + maxX * imageWidth + maxY;
+                int dOutputIdx = dOutputOffset + sX * outputWidth + sY;
+                gradient[maxIdx] += dOutput[dOutputIdx];
             }
         }
     }

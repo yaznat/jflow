@@ -26,7 +26,7 @@ class ImageDisplay extends JPanel{
         this.scaleFactor = scaleFactor;
 
         frame = new JFrame();
-        frame.setBounds(0, 0, width * scaleFactor, height * scaleFactor + 25); // Fix mac bug
+        frame.setBounds(0, 0, width * scaleFactor, height * scaleFactor + 25);
         frame.setResizable(false);
         frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         frame.setTitle(label);

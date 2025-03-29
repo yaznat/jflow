@@ -43,45 +43,6 @@ public class Sequential {
     }
 
 
-    // public void train(Dataloader loader, int epochs, double learningRate) {
-    //     // preload batches
-    //     int numBatches = loader.numBatches();
-    //     int batchSize = loader.getBatches().get(0).size();
-    //     int imageSize = loader.getBatches().get(0).get(0).getHeight()
-    //         * loader.getBatches().get(0).get(0).getWidth();
-    //     double[][][] xBatches = new double[numBatches][imageSize][batchSize];
-    //     int[][] yBatches = new int[numBatches][batchSize];
-
-    //     int count = 0;
-    //     for (List<Image> batch : loader.getBatches()) {
-    //         double[][] images = new double[batchSize][imageSize];
-    //         int[] labels = new int[batchSize];
-    //         for (int i = 0; i < batch.size(); i++) {
-    //             images[i] = batch.get(i).getFlat();
-    //             labels[i] = batch.get(i).getLabel();
-    //         }
-    //         xBatches[count] = Utility.transpose(images);
-    //         yBatches[count++] = labels;
-    //     }
-    //     // begin training
-    //     for (int epoch = 1; epoch <= epochs; epoch++) {
-    //         double accuracy = 0;
-    //         for (int batch = 0; batch < numBatches; batch++) {
-    
-    //             layers.getFirst().forward(xBatches[batch], true);
-    //             layers.getLast().backward(oneHotEncode(yBatches[batch], 10, true), learningRate * 0.85);
-
-
-    //             double[][] output = layers.getLast().getOutput();
-
-    //             accuracy += getAccuracy(argmax0(output), yBatches[batch]);
-    //         }
-    //         if (epoch % 10 == 0) {
-    //             System.out.println("\nEpoch: " + epoch + "/" + epochs + 
-    //                 " Accuracy: " + (accuracy / loader.numBatches()));
-    //         }
-    //     }
-    // }
     public void train(Dataloader loader, int epochs, double learningRate) {
         // preload batches
         int numBatches = loader.numBatches();
@@ -138,7 +99,7 @@ public class Sequential {
     }
 
     // Predict classes on 2D flat images
-    public int[] predict (double[][] images) {
+    public int[] predict(double[][] images) {
         int height = images.length;
         int width = images[0].length;
         double[] flattened = new double[height * width];
@@ -173,7 +134,10 @@ public class Sequential {
                 for (int h = 0; h < imageHeight; h++) {
                     for (int w = 0; w < imageWidth; w++) {
                         int flatIndex = startIdx + (c * imageHeight * imageWidth) + (h * imageWidth) + w;
-                        flattened[flatIndex] = images[i][c][h][w];
+                        try {
+                            flattened[flatIndex] = images[i][c][h][w];
+                        } catch (ArrayIndexOutOfBoundsException e) {
+                        }
                     }
                 }
             }
@@ -257,7 +221,7 @@ public class Sequential {
         return result;
     }
 
-    public double getAccuracy(int[] predictions, int[] labels) {
+    private double getAccuracy(int[] predictions, int[] labels) {
         double sum = 0;
         for (int x = 0; x < predictions.length; x++) {
             if (predictions[x] == labels[x]) {

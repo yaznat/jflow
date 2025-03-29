@@ -1,8 +1,11 @@
 package JFlow.data;
 
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.function.Function;
 
 import javax.imageio.ImageIO;
@@ -13,12 +16,12 @@ public class Image {
     private double[][][] xData;
 
     
-    protected Image(String path, int label) {
+    protected Image(String path, int label, boolean grayscale) {
         try {
             BufferedImage img = ImageIO.read(new File(path));
 
             // 1 channel for grayscale, 3 for RGB
-            if (grayscaleCheck(img)) {
+            if (grayscale) {
                 raw = loadGrayscaleImage(img);
             } else {
                 raw = loadRGBImage(img);
@@ -102,25 +105,84 @@ public class Image {
 
 
     // Return true if an image is grayscale
+    // private boolean grayscaleCheck(BufferedImage img) {
+    //     img = ensureRGB(img);
+    //     int width = img.getWidth();
+    //     int height = img.getHeight();
+    //     double totalDifference = 0;
+    //     int numPixels = width * height;
+    
+    //     for (int y = 0; y < height; y++) { 
+    //         for (int x = 0; x < width; x++) { 
+    //             int argb = img.getRGB(x, y);
+    //             int red   = (argb >> 16) & 0xFF;
+    //             int green = (argb >> 8)  & 0xFF;
+    //             int blue  = (argb)       & 0xFF;
+    
+    //             // Compute difference from average grayscale value
+    //             int avg = (red + green + blue) / 3;
+    //             totalDifference += Math.abs(red - avg) + Math.abs(green - avg) + Math.abs(blue - avg);
+    //         }
+    //     }
+    
+    //     // If the average deviation is very small, consider it grayscale
+    //     return (totalDifference / numPixels) < 5; // Tweak threshold if needed
+    // }
+    // private boolean grayscaleCheck(BufferedImage img) {
+    //     img = ensureRGB(img);
+    //     int width = img.getWidth();
+    //     int height = img.getHeight();
+    
+    //     for (int y = 0; y < height; y++) { 
+    //         for (int x = 0; x < width; x++) { 
+    //             int argb = img.getRGB(x, y);
+    //             int red   = (argb >> 16) & 0xFF;
+    //             int green = (argb >> 8)  & 0xFF;
+    //             int blue  = (argb)       & 0xFF;
+    
+    //             if (red != green || green != blue) {
+    //                 return false;
+    //             }
+    //         }
+    //     }
+    //     return true;
+    // }
     private boolean grayscaleCheck(BufferedImage img) {
-        int width = img.getWidth();
-        int height = img.getHeight();
-    
-        for (int y = 0; y < height; y += 5) { // Check every 5th row
-            for (int x = 0; x < width; x += 5) { // Check every 5th column
-                int argb = img.getRGB(x, y);
-                int red   = (argb >> 16) & 0xFF;
-                int green = (argb >> 8)  & 0xFF;
-                int blue  = (argb)       & 0xFF;
-    
-                if (red != green || green != blue) {
-                    return false;
-                }
+    int width = img.getWidth();
+    int height = img.getHeight();
+    Set<Integer> uniqueColors = new HashSet<>();
+
+    for (int y = 0; y < height; y++) { 
+        for (int x = 0; x < width; x++) { 
+            int argb = img.getRGB(x, y);
+            int red   = (argb >> 16) & 0xFF;
+            int green = (argb >> 8)  & 0xFF;
+            int blue  = (argb)       & 0xFF;
+
+            // Store the unique grayscale intensity
+            uniqueColors.add(red);
+
+            // If we find non-gray pixels, exit early
+            if (red != green || green != blue) {
+                return false;
             }
         }
-        return true;
     }
+    return true;
+}
 
+
+    private BufferedImage ensureRGB(BufferedImage img) {
+        if (img.getType() != BufferedImage.TYPE_INT_RGB) {
+            BufferedImage converted = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D g2d = converted.createGraphics();
+            g2d.drawImage(img, 0, 0, null);
+            g2d.dispose();
+            return converted;
+        }
+        return img;
+    }
+    
 
     private double[][][] loadGrayscaleImage(BufferedImage img) {
         int width = img.getWidth();

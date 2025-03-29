@@ -4,7 +4,9 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
@@ -32,7 +34,7 @@ public class Dataloader {
     }
 
     // load a folder of images into the dataset with a certain label
-    public void addImagesWithLabel(String directory, int label, double percentOfDirectory) {
+    public void loadFromDirectory(String directory, int label, double percentOfDirectory, boolean grayscale) {
         File dir = new File(directory);
 
         File[] files = dir.listFiles();
@@ -41,10 +43,48 @@ public class Dataloader {
 
         for (int i = 0; i < numImages; i++) {
             if (files[i].getAbsolutePath().endsWith(".png") || 
-                    files[i].getAbsolutePath().endsWith(".png"))
-                images.add(new Image(files[i].getAbsolutePath(), label));
+                    files[i].getAbsolutePath().endsWith(".jpg"))
+                images.add(new Image(files[i].getAbsolutePath(), label, grayscale));
         }
     }
+
+    // load a folder of images into the dataset using a provided CSV with labels
+    public void loadFromDirectory(String directory, String[] labelsInOrder, String pathToLabelCSV, double percentOfDirectory, boolean grayscale) {
+        File dir = new File(directory);
+
+        File[] files = dir.listFiles();
+
+        Arrays.sort(files, Comparator.comparingInt(file -> extractNumber(file.getName())));
+        int numImages = (int)(files.length * percentOfDirectory);
+
+        try(BufferedReader br = new BufferedReader(new FileReader(pathToLabelCSV))) {
+            String line;
+            int index = 0;
+            while((line = br.readLine()) != null && index < numImages){
+                String labelName = line.split(",")[1];
+                int label = indexOf(labelsInOrder, labelName);
+                if ((files[index].getAbsolutePath().endsWith(".png") || 
+                    files[index].getAbsolutePath().endsWith(".jpg")) && 
+                    label != -1)
+                    images.add(new Image(files[index].getAbsolutePath(), label, grayscale));
+                index++;
+            }
+        } catch (Exception e) {
+            System.err.println(e);
+        }
+    }
+
+
+    private int extractNumber(String filename) {
+        try {
+            return Integer.parseInt(filename.replaceAll("[^0-9]", ""));
+        } catch (NumberFormatException e) {
+            return Integer.MAX_VALUE; // Push non-numeric names to the end
+        }
+    }
+    
+
+
 
     // load flattened images from csv
     public void loadFromCSV(String path, boolean areLabelsFirstItem, double percent) {
@@ -229,8 +269,8 @@ public class Dataloader {
             throw new NullPointerException("Test dataset never set");
         }
         int numImages = testImages.size();
-        int imageSize = testImages.get(0).getHeight() * testImages.get(0).getWidth();
-        double[][] images = new double[numImages][imageSize];
+        // int imageSize = testImages.get(0).getHeight() * testImages.get(0).getWidth() * testImages.get(0).numChannels();
+        double[][] images = new double[numImages][testImages.get(0).getFlat().length];
 
         for (int i = 0; i < numImages; i++) {
             images[i] = testImages.get(i).getFlat();
@@ -268,5 +308,14 @@ public class Dataloader {
         }
 
         return labels;
+    }
+
+    private int indexOf(String[] arr, String target) {
+        for (int i = 0; i < arr.length; i++) {
+            if (arr[i].equals(target)) {
+                return i;
+            }
+        }
+        return -1;
     }
 }
