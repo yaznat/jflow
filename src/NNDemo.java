@@ -1,8 +1,7 @@
 import java.io.IOException;
-import JFlow.Layers.Layers;
-import JFlow.Layers.Sequential;
-import JFlow.data.Dataloader;
-import JFlow.data.Transform;
+
+import JFlow.Layers.*;
+import JFlow.data.*;
 import JFlow.utils.Metrics;
 
 /*

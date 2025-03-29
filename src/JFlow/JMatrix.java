@@ -113,6 +113,13 @@ public class JMatrix {
         return Math.sqrt(sum);
     }
 
+     // Scale values from [0,n] to [0,1]
+    public JMatrix scaleSigmoid() {
+        double max = max();
+        return multiply(1.0 / max);
+    }
+
+
     // Add Gaussian noise to each item
     public JMatrix addGaussianNoise(double mean, double stdDev) {
         double[] noisy = new double[size()];

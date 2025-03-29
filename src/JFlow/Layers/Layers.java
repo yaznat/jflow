@@ -1,5 +1,10 @@
 package JFlow.Layers;
 
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+import JFlow.JMatrix;
+
 public class Layers {
     // Add layers statically for user interface
     public static Layer Dense(int inputSize, int outputSize) {
@@ -36,6 +41,10 @@ public class Layers {
 
     public static Layer Upsampling2D(int scaleFactor) {
         return new Upsampling2D(scaleFactor);
+    }
+
+    public static Activation customActivation(Function<JMatrix, JMatrix> activation, BiFunction<JMatrix, JMatrix, JMatrix> dActivation) {
+        return new CustomActivation(activation, dActivation);
     }
 
     public static Activation Tanh() {
