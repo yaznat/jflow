@@ -1,7 +1,6 @@
 # JFlow
-CPU based machine learning library in Java
-
-
+CPU based machine learning library in Java.  
+High school project.
 # Key Features 
 
 ##  -> Dataloader  
