@@ -91,6 +91,18 @@ public class JMatrix {
         }
         return max;
     }
+    // Return the 1D index of the maximum value
+    public int argmax() {
+        double maxValue = Double.NEGATIVE_INFINITY;
+        int maxIndex = 0;
+        for (int i = 0; i < size(); i++) {
+            if (matrix[i] > maxValue) {
+                maxValue = matrix[i];
+                maxIndex = i;
+            }
+        }
+        return maxIndex;
+    }
     public double mean() {
         double mean = 0;
         for (double d : matrix) {
