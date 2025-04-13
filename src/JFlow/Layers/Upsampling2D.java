@@ -1,18 +1,25 @@
 package JFlow.Layers;
 
+import java.util.HashMap;
 import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
 
 class Upsampling2D extends Layer{
     private int scaleFactor;
+    private int[] outputShape = null;
     private double[] output = new double[0], gradient = new double[0];
 
     public Upsampling2D(int scaleFactor) {
-        super(0, "up_sampling_2d");
+        super("up_sampling_2d", 0);
         this.scaleFactor = scaleFactor;
     }
 
+
+    @Override
+    protected int channels() {
+        return getPreviousLayer().channels();
+    }
 
     @Override
     // Expand input by scalefactor
@@ -26,6 +33,9 @@ class Upsampling2D extends Layer{
     
     int newHeight = height * scaleFactor;
     int newWidth = width * scaleFactor;
+
+    this.outputShape = new int[]{numImages, channels, newHeight, newWidth};
+
     if (output.length != input.size()) {
         output = new double[numImages * channels * newHeight * newWidth];
     }
@@ -115,5 +125,21 @@ class Upsampling2D extends Layer{
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'getGradient'");
     }
+
+    @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        return null;
+    }
     
+    @Override
+    protected int[] getOutputShape() {
+        return outputShape;
+    }
+
+
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
+    }
 }

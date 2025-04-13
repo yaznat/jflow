@@ -4,22 +4,29 @@ import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
 
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Random;
 
 class Conv2D extends Layer {
-    private JMatrix A, Z, dZ, filters, dFilters, vFilters, lastInput, dX;
-    private JMatrix biases, dBiases, vBiases;
+    private JMatrix A, Z, dZ, filters, dFilters, vFilters, lastInput, dX, biases, dBiases, vBiases;
     private final double beta = 0.9; // Momentum coefficient
     private int numFilters, filterSize, numChannels, inputHeight, inputWidth, numImages;
     private String padding;
 
-    protected Conv2D(int numFilters, int inputChannels, int filterSize, String padding) {
-        super(numFilters * filterSize * filterSize, "conv_2d");
+    private double filterGradientClipNorm = 2.0; 
+    private double biasGradientClipNorm = 1.0;   
+    private double inputGradientClipNorm = 10.0;
+
+    protected Conv2D(int numFilters, int filterSize, String padding) {
+        super("conv_2d", 0);
         this.numFilters = numFilters;
         this.filterSize = filterSize;
-        this.numChannels = inputChannels;
         this.padding = padding;
+    }
+
+    public void build(int inputChannels) {
+        this.numChannels = inputChannels;
+        setNumTrainableParameters(numFilters * inputChannels * filterSize * filterSize + numFilters);
 
         // Initialize filters with He
         Random rand = new Random();
@@ -47,41 +54,52 @@ class Conv2D extends Layer {
         vBiases = new JMatrix(numFilters, 1, 1, 1);
     }
 
+    @Override
+    protected int channels() {
+        return numFilters;
+    }
 
     @Override
-    public void forward(JMatrix input, boolean training) {
+    protected void forward(JMatrix input, boolean training) {
         lastInput = input;
         this.inputHeight = input.height();
         this.inputWidth = input.width();
         this.numImages = input.length();
-
-
-        int outputSize = numImages * numFilters * inputHeight * inputWidth;
+    
+        // Calculate output dimensions based on padding
+        int outputHeight, outputWidth;
+        if (padding.equals("same_padding")) {
+            outputHeight = inputHeight;
+            outputWidth = inputWidth;
+        } else { // valid padding
+            outputHeight = inputHeight - filterSize + 1;
+            outputWidth = inputWidth - filterSize + 1;
+        }
+    
+        // Initialize output matrix with proper dimensions
+        int outputSize = numImages * numFilters * outputHeight * outputWidth;
         if (A == null || A.size() != outputSize) {  
-            A = new JMatrix(numImages, numFilters, inputHeight, inputWidth);
+            A = new JMatrix(numImages, numFilters, outputHeight, outputWidth);
         } else {
             A.fill(0);
         }
-
-        // Calculate forward outpu
-
+    
+        // Calculate forward output
         IntStream.range(0, numImages).parallel().forEach(j -> {
             for (int k = 0; k < numFilters; k++) {
                 final int filterIndex = k;
                 final int imageIndex = j;
                 int startIdx = imageIndex * numChannels * inputHeight * inputWidth;
-                int outputIdx = (imageIndex * numFilters + filterIndex) * inputHeight * inputWidth;
+                int outputIdx = (imageIndex * numFilters + filterIndex) * outputHeight * outputWidth;
                 applyConv2D(A.getMatrix(), outputIdx, input.getMatrix(), startIdx, 
                     filters.getMatrix(), filterIndex, biases.getMatrix()[filterIndex]);
             }
         });
-
-    // Implement conv dropout eventually!
-        // if (super.getDropout() != null && training) {
-        //     super.getDropout().newDropoutMaskConv(numFilters); // Generate new mask
-        //     super.getDropout().applyDropoutConv(A, numImages, numFilters, height, width); // Apply dropout
-        // }
-
+        // Apply BatchNorm
+        if (getBatchNorm() != null) {
+            A = getBatchNorm().forward(A, training);
+        }
+    
         // Apply activation
         if (getActivation() != null) {
             Z = getActivation().applyActivation(A);
@@ -94,13 +112,28 @@ class Conv2D extends Layer {
         }
     }
 
- @Override
-    public void backward(JMatrix input, double learningRate) {
+    @Override
+    protected void backward(JMatrix input, double learningRate) {
+        // Calculate output dimensions based on padding
+        int outputHeight, outputWidth;
+        if (padding.equals("same_padding")) {
+            outputHeight = inputHeight;
+            outputWidth = inputWidth;
+        } else { // valid padding
+            outputHeight = inputHeight - filterSize + 1;
+            outputWidth = inputWidth - filterSize + 1;
+        }
+
         // Apply activation derivative
         if (getActivation() != null) {
             dZ = getActivation().applyDActivation(Z, input);
         } else {
             dZ = input;
+        }
+
+         // Apply BatchNorm
+         if (getBatchNorm() != null) {
+            dZ = getBatchNorm().backward(dZ, learningRate);
         }
         
         if (getDebug()) {
@@ -108,48 +141,68 @@ class Conv2D extends Layer {
             System.out.println("Max lastInput: " + lastInput.max());
         }
 
-    // Implement conv dropout eventually!
-        // if (super.getDropout() != null) {
-        //     super.getDropout().applyDropoutConv(dZ, numImages, numFilters, height, width);
-        // }
-
-
         // Calculate dFilters
         dFilters.fill(0);
-
         double[] dZmatrix = dZ.getMatrix();
         double[] lastInputMatrix = lastInput.getMatrix();
 
+        // Calculate filter gradients for each filter and channel
         IntStream.range(0, numFilters).parallel().forEach(k -> {
-                for (int c = 0; c < numChannels; c++) {
-                    double[] accumulatedSum = new double[filterSize * filterSize]; 
-        
-                    for (int i = 0; i < numImages; i++) {
-                        int lastInputIdx = (i * numChannels + c) * inputHeight * inputWidth;
-                        int dZIdx = (i * numFilters + k) * (inputHeight - filterSize + 1) * (inputWidth - filterSize + 1);
-        
-                        if (dZIdx >= dZmatrix.length) {
-                            throw new ArrayIndexOutOfBoundsException("dZIdx out of bounds: " + dZIdx);
+            for (int c = 0; c < numChannels; c++) {
+                double[] filterGradients = new double[filterSize * filterSize]; 
+
+                for (int i = 0; i < numImages; i++) {
+                    int lastInputIdx = (i * numChannels + c) * inputHeight * inputWidth;
+                    int dZIdx = (i * numFilters + k) * outputHeight * outputWidth;
+
+                    // Calculate correlation between input and output gradients
+                    for (int fh = 0; fh < filterSize; fh++) {
+                        for (int fw = 0; fw < filterSize; fw++) {
+                            double sum = 0;
+                            
+                            for (int oh = 0; oh < outputHeight; oh++) {
+                                for (int ow = 0; ow < outputWidth; ow++) {
+                                    int dZPos = dZIdx + (oh * outputWidth + ow);
+                                    
+                                    // Calculate corresponding input position
+                                    int inH, inW;
+                                    
+                                    if (padding.equals("same_padding")) {
+                                        inH = oh + fh - filterSize / 2;
+                                        inW = ow + fw - filterSize / 2;
+                                    } else {
+                                        inH = oh + fh;
+                                        inW = ow + fw;
+                                    }
+                                    
+                                    if (inH >= 0 && inH < inputHeight && inW >= 0 && inW < inputWidth &&
+                                        dZPos >= 0 && dZPos < dZmatrix.length) {
+                                        int inputPos = lastInputIdx + (inH * inputWidth + inW);
+                                        
+                                        if (inputPos >= 0 && inputPos < lastInputMatrix.length) {
+                                            sum += lastInputMatrix[inputPos] * dZmatrix[dZPos];
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            filterGradients[fh * filterSize + fw] += sum;
                         }
-        
-                        applyConv2DGradient(accumulatedSum, lastInputMatrix, lastInputIdx, dZmatrix, dZIdx, false);
                     }
-        
-                    int filterIndex = ((k * numChannels) + c) * filterSize * filterSize;
-                    if (filterIndex + filterSize * filterSize > dFilters.size()) {
-                        throw new ArrayIndexOutOfBoundsException("dFilters overflow: " + (filterIndex + filterSize * filterSize));
-                    }
-        
-                    System.arraycopy(accumulatedSum, 0, dFilters.getMatrix(), filterIndex, filterSize * filterSize);
                 }
+
+                // Copy accumulated gradients to dFilters
+                int filterGradientOffset = ((k * numChannels) + c) * filterSize * filterSize;
+                System.arraycopy(filterGradients, 0, dFilters.getMatrix(), filterGradientOffset, filterSize * filterSize);
+            }
         });
 
-        // Clip values
-        dFilters.clip(-1.0, 1.0);
+        // Scale values to prevent exploding gradients
+        scaleFilterGradients();
+
+        
         if (super.getDebug()) 
             System.out.println("Max dFilters: " + dFilters.max());
-
-
 
         // Calculate dBiases
         dBiases.fill(0);
@@ -158,34 +211,35 @@ class Conv2D extends Layer {
         IntStream.range(0, numFilters).parallel().forEach(k -> {
             double sum = 0;
             for (int i = 0; i < numImages; i++) {
-                int dZIdx = (i * numFilters + k) * inputHeight * inputWidth;
-                for (int j = 0; j < inputHeight * inputWidth; j++) {
+                int dZIdx = (i * numFilters + k) * outputHeight * outputWidth;
+                for (int j = 0; j < outputHeight * outputWidth; j++) {
                     sum += dZmatrix[dZIdx + j];
                 }
             }
             dBiasesMatrix[k] += sum;        
         });
-        // Clip values
-        dBiases.clip(-0.1, 0.1);
+        
+        // Scale bias gradients
+        scaleBiasGradients();
+
 
         if (super.getDebug())
             System.out.println("Max dBiases: " + dBiases.max());
-        
 
         // Normalize for batch size
         for (int i = 0; i < dFilters.size(); i++) {
             dFilters.getMatrix()[i] /= numImages;
         }
-        for (int k = 0; k < dBiases.size(); k++) {
-            dBiases.getMatrix()[k] /= numImages;
-        }
+        // for (int k = 0; k < dBiases.size(); k++) {
+        //     dBiases.getMatrix()[k] /= numImages;
+        // }
 
         updateFiltersWithMomentum(filters.getMatrix(), dFilters.getMatrix(), vFilters.getMatrix(), learningRate);
         updateBiasesWithMomentum(biases.getMatrix(), dBiases.getMatrix(), vBiases.getMatrix(), learningRate);
 
-        // Calculate dX
+        // Calculate dX (input gradients)
         if (dX == null || !dX.isSameShapeAs(lastInput)) {
-            dX = new JMatrix(numImages, numChannels,  inputHeight, inputWidth);
+            dX = new JMatrix(numImages, numChannels, inputHeight, inputWidth);
         } else {
             dX.fill(0);
         }
@@ -193,26 +247,63 @@ class Conv2D extends Layer {
         double[] dXmatrix = dX.getMatrix();
         double[] filtersMatrix = filters.getMatrix();
 
-        int outputHeight = inputHeight - filterSize + 1;
-        int outputWidth = inputWidth - filterSize + 1;
-    
+        // Calculate input gradients
         IntStream.range(0, numImages).parallel().forEach(i -> {
-                for (int c = 0; c < numChannels; c++) {  
-                    double[] accumulatedGradients = new double[inputHeight * inputWidth];
-    
-                    for (int k = 0; k < numFilters; k++) {
-                        int filterIndex = (k * numChannels + c) * filterSize * filterSize;  
-                        int dZIndex = (i * numFilters + k) * outputHeight * outputWidth;  
+            for (int c = 0; c < numChannels; c++) {  
+                int dXBase = (i * numChannels + c) * inputHeight * inputWidth;
+                
+                for (int h = 0; h < inputHeight; h++) {
+                    for (int w = 0; w < inputWidth; w++) {
+                        double sum = 0;
+                        
+                        // For each filter
+                        for (int k = 0; k < numFilters; k++) {
+                            int filterBase = (k * numChannels + c) * filterSize * filterSize;
+                            int dZBase = (i * numFilters + k) * outputHeight * outputWidth;
                             
-                        applyConv2DGradient(accumulatedGradients, filtersMatrix, filterIndex, dZmatrix, dZIndex, true);
+                            // For each position in the filter
+                            for (int fh = 0; fh < filterSize; fh++) {
+                                for (int fw = 0; fw < filterSize; fw++) {
+                                    // Flip filter for gradient calculation (180° rotation)
+                                    int flippedFh = filterSize - 1 - fh;
+                                    int flippedFw = filterSize - 1 - fw;
+                                    
+                                    // Calculate corresponding output position
+                                    int outH, outW;
+                                    
+                                    if (padding.equals("same_padding")) {
+                                        outH = h - fh + filterSize / 2;
+                                        outW = w - fw + filterSize / 2;
+                                    } else {
+                                        outH = h - fh;
+                                        outW = w - fw;
+                                    }
+                                    
+                                    if (outH >= 0 && outH < outputHeight && outW >= 0 && outW < outputWidth) {
+                                        // Get filter value and output gradient
+                                        int filterIdx = filterBase + (flippedFh * filterSize + flippedFw);
+                                        int dZPos = dZBase + (outH * outputWidth + outW);
+                                        
+                                        if (dZPos >= 0 && dZPos < dZmatrix.length && 
+                                            filterIdx >= 0 && filterIdx < filtersMatrix.length) {
+                                            sum += filtersMatrix[filterIdx] * dZmatrix[dZPos];
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        int dXPos = dXBase + (h * inputWidth + w);
+                        dXmatrix[dXPos] = sum;
                     }
-    
-                    int dXIdx = (i * numChannels + c) * inputHeight * inputWidth;  
-                    System.arraycopy(accumulatedGradients, 0, dXmatrix, dXIdx, inputHeight * inputWidth);
                 }
-            });
-        // Clip values
-        dX.clip(-5.0, 5.0);
+            }
+        });
+        
+        // Clip input gradients
+        scaleInputGradients();
+        
+        
         if (super.getDebug())
             System.out.println("Max dX: " + dX.max());
 
@@ -220,8 +311,6 @@ class Conv2D extends Layer {
             getPreviousLayer().backward(dX, learningRate);
         }
     }
-
-
     // Apply convolution to one image at a time
     private void applyConv2D(double[] output, int outIdx, double[] input, int inIdx, double[] filter, int filterIdx, double bias) {
         int pad = 0;
@@ -238,160 +327,185 @@ class Conv2D extends Layer {
     
         int finalPad = pad;
         int finalOutputWidth = outputWidth;
-            for (int i = 0; i < outputHeight; i++) {
-                for (int j = 0; j < finalOutputWidth; j++) {
-                    double sum = bias;
+        
+        for (int i = 0; i < outputHeight; i++) {
+            for (int j = 0; j < finalOutputWidth; j++) {
+                double sum = bias;
     
-                    for (int c = 0; c < numChannels; c++) {
-                        for (int fi = 0; fi < filterSize; fi++) {
-                            for (int fj = 0; fj < filterSize; fj++) {
-                                int inputRow = i + fi - finalPad;
-                                int inputCol = j + fj - finalPad;
+                for (int c = 0; c < numChannels; c++) {
+                    for (int fi = 0; fi < filterSize; fi++) {
+                        for (int fj = 0; fj < filterSize; fj++) {
+                            int inputRow = i + fi - finalPad;
+                            int inputCol = j + fj - finalPad;
     
-                                if (inputRow >= 0 && inputRow < inputHeight && inputCol >= 0 && inputCol < inputWidth) {
-                                    int inputIdx = ((c * inputHeight + inputRow) * inputWidth) + inputCol;
-                                    int filterIdxOffset = ((c * filterSize + fi) * filterSize) + fj;
-                                    sum += input[inIdx + inputIdx] * filter[filterIdx + filterIdxOffset];
-                                }
-                            }
-                        }
-                    }
-    
-                    output[outIdx + (i * finalOutputWidth + j)] = sum;
-                }
-            }
-    }
-
-     // Calculate the conv gradient for one image at a time
-    //  private void applyConv2DGradient(double[] gradient, double[] input, int inIdx, double[] dZ, int dZIdx, boolean flipFilter) {
-    //     Arrays.fill(gradient, 0);
-    
-    //     int outputHeight = inputHeight - filterSize + 1;
-    //     int outputWidth = inputWidth - filterSize + 1;
-    
-    //     for (int fi = 0; fi < filterSize; fi++) {
-    //         for (int fj = 0; fj < filterSize; fj++) {
-    //             double sum = 0.0;
-    
-    //             for (int i = 0; i < outputHeight; i++) {
-    //                 for (int j = 0; j < outputWidth; j++) {
-    //                     int dZRow = i;
-    //                     int dZCol = j;
-    //                     int dZIdxOffset = dZRow * outputWidth + dZCol;
-    
-    //                     if (dZIdx + dZIdxOffset >= dZ.length) {
-    //                         continue;
-    //                     }
-    
-    //                     int filterFi = fi;
-    //                     int filterFj = fj;
-    
-    //                     // Flip the filter only when calculating dX
-    //                     if (flipFilter) {
-    //                         filterFi = filterSize - 1 - fi;
-    //                         filterFj = filterSize - 1 - fj;
-    //                     }
-    
-    //                     // Accumulate gradient
-    //                     gradient[filterFi * filterSize + filterFj] += dZ[dZIdx + dZIdxOffset];
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }
-
-    private void applyConv2DGradient(double[] filterGradients, double[] input, int inputIdx, 
-                                double[] dZ, int dZIdx, boolean isInputGradient) {
-    Arrays.fill(filterGradients, 0);
-    int pad = 0;
-    int outputHeight, outputWidth;
-    
-    if (padding.equals("same_padding")) {
-        pad = filterSize / 2;
-        outputHeight = inputHeight;
-        outputWidth = inputWidth;
-    } else {
-        outputHeight = inputHeight - filterSize + 1;
-        outputWidth = inputWidth - filterSize + 1;
-    }
-    
-    if (!isInputGradient) {
-        // Calculate filter gradients - correlation between input and output gradients
-        for (int h = 0; h < outputHeight; h++) {
-            for (int w = 0; w < outputWidth; w++) {
-                int dZPos = dZIdx + (h * outputWidth + w);
-                
-                if (dZPos < dZ.length) {
-                    for (int fh = 0; fh < filterSize; fh++) {
-                        for (int fw = 0; fw < filterSize; fw++) {
-                            int inH = h + fh - pad;
-                            int inW = w + fw - pad;
-                            
-                            if (inH >= 0 && inH < inputHeight && inW >= 0 && inW < inputWidth) {
-                                int inputPos = inputIdx + (inH * inputWidth + inW);
+                            if (inputRow >= 0 && inputRow < inputHeight && inputCol >= 0 && inputCol < inputWidth) {
+                                int inputIdx = inIdx + (c * inputHeight * inputWidth) + (inputRow * inputWidth) + inputCol;
                                 
-                                if (inputPos < input.length) {
-                                    filterGradients[fh * filterSize + fw] += input[inputPos] * dZ[dZPos];
-                                }
+                                int filterIdxOffset = (c * filterSize * filterSize) + (fi * filterSize) + fj;
+                                
+                                sum += input[inputIdx] * filter[(filterIdx * numChannels * filterSize * filterSize) + filterIdxOffset];
                             }
                         }
                     }
                 }
-            }
-        }
-    } else {
-        // Calculate input gradients - convolution with flipped filters
-        for (int h = 0; h < inputHeight; h++) {
-            for (int w = 0; w < inputWidth; w++) {
-                double sum = 0;
-                
-                for (int fh = 0; fh < filterSize; fh++) {
-                    for (int fw = 0; fw < filterSize; fw++) {
-                        // Flip filter for gradient calculation
-                        int flippedFh = filterSize - 1 - fh;
-                        int flippedFw = filterSize - 1 - fw;
-                        
-                        int outH = h - flippedFh + pad;
-                        int outW = w - flippedFw + pad;
-                        
-                        if (outH >= 0 && outH < outputHeight && outW >= 0 && outW < outputWidth) {
-                            int filterPos = flippedFh * filterSize + flippedFw;
-                            int dZPos = dZIdx + (outH * outputWidth + outW);
-                            
-                            if (dZPos < dZ.length && filterPos < input.length) {
-                                sum += input[inputIdx + filterPos] * dZ[dZPos];
-                            }
-                        }
-                    }
-                }
-                
-                filterGradients[h * inputWidth + w] = sum;
+    
+                output[outIdx + (i * finalOutputWidth + j)] = sum;
             }
         }
     }
-}
-    
     private void updateFiltersWithMomentum(double[] filters, double[] dFilters, double[] vFilters, double learningRate) {
-        IntStream.range(0, filters.length).parallel().forEach(i -> {
-            vFilters[i] = beta * vFilters[i] + (1 - beta) * dFilters[i];
-            filters[i] -= learningRate * vFilters[i];
-            
-        });
+        // Calculate average gradient magnitude for adaptive scaling
+        double avgGradMagnitude = 0.0;
+        for (int i = 0; i < dFilters.length; i++) {
+            avgGradMagnitude += Math.abs(dFilters[i]);
+        }
+        avgGradMagnitude /= dFilters.length;
+        
+        // Adjust learning rate based on gradient magnitude
+        // double adaptiveLR = learningRate;
+        // if (avgGradMagnitude > 0.1) {
+        //     adaptiveLR = learningRate * (0.1 / avgGradMagnitude);
+        // }
+        double adaptiveLR = learningRate / (1.0 + avgGradMagnitude * 10.0);
+        
+        // Iterate over each filter
+        for (int k = 0; k < numFilters; k++) {
+            for (int c = 0; c < numChannels; c++) {
+                int filterIndex = (k * numChannels + c) * filterSize * filterSize;
+                
+                for (int i = 0; i < filterSize * filterSize; i++) {
+                    // Update vFilters with the momentum term
+                    vFilters[filterIndex + i] = beta * vFilters[filterIndex + i] + (1 - beta) * dFilters[filterIndex + i];
+                    
+                    // Update the filter weights with adaptive learning rate
+                    filters[filterIndex + i] -= adaptiveLR * vFilters[filterIndex + i];
+                }
+            }
+        }
+        
+        if (super.getDebug() && adaptiveLR != learningRate) {
+            System.out.println("Filter learning rate adjusted to: " + adaptiveLR + 
+                              " (avg gradient: " + avgGradMagnitude + ")");
+        }
     }
     
     private void updateBiasesWithMomentum(double[] biases, double[] dBiases, double[] vBiases, double learningRate) {
+        // Calculate average gradient magnitude
+        double avgGradMagnitude = 0.0;
+        for (int i = 0; i < dBiases.length; i++) {
+            avgGradMagnitude += Math.abs(dBiases[i]);
+        }
+        avgGradMagnitude /= dBiases.length;
+        
+        // Adjust learning rate based on gradient magnitude
+        final double adaptiveLR = (avgGradMagnitude > 0.05) ? 
+                                 learningRate * (0.05 / avgGradMagnitude) : 
+                                 learningRate;
+        
         IntStream.range(0, biases.length).parallel().forEach(i -> {
             vBiases[i] = beta * vBiases[i] + (1 - beta) * dBiases[i];
-            biases[i] -= learningRate * vBiases[i];
+            biases[i] -= adaptiveLR * vBiases[i];
         });
+        
+        if (super.getDebug() && adaptiveLR != learningRate) {
+            System.out.println("Bias learning rate adjusted to: " + adaptiveLR + 
+                              " (avg gradient: " + avgGradMagnitude + ")");
+        }
     }
 
-    public double[] getFilters() {
-        return filters.getMatrix();
+    private void scaleFilterGradients() {
+        // Calculate Frobenius norm of filter gradients
+        double sumSquared = 0.0;
+        double[] dFiltersMatrix = dFilters.getMatrix();
+        
+        for (int i = 0; i < dFiltersMatrix.length; i++) {
+            sumSquared += dFiltersMatrix[i] * dFiltersMatrix[i];
+        }
+        
+        double frobeniusNorm = Math.sqrt(sumSquared);
+        
+        // Scale gradients if norm exceeds threshold
+        if (frobeniusNorm > filterGradientClipNorm && frobeniusNorm > 0) {
+            // double scalingFactor = filterGradientClipNorm / frobeniusNorm;
+            double scalingFactor = filterGradientClipNorm / (frobeniusNorm + 1e-10);
+            
+            for (int i = 0; i < dFiltersMatrix.length; i++) {
+                dFiltersMatrix[i] *= scalingFactor;
+            }
+            
+            if (super.getDebug()) {
+                System.out.println("Filter gradients scaled by: " + scalingFactor + 
+                                  " (norm: " + frobeniusNorm + ")");
+            }
+        }
+    }
+    
+    private void scaleBiasGradients() {
+        // Calculate L2 norm of bias gradients
+        double sumSquared = 0.0;
+        double[] dBiasesMatrix = dBiases.getMatrix();
+        
+        for (int i = 0; i < dBiasesMatrix.length; i++) {
+            sumSquared += dBiasesMatrix[i] * dBiasesMatrix[i];
+        }
+        
+        double l2Norm = Math.sqrt(sumSquared);
+        
+        // Scale gradients if norm exceeds threshold
+        if (l2Norm > biasGradientClipNorm && l2Norm > 0) {
+            double scalingFactor = biasGradientClipNorm / l2Norm;
+            
+            for (int i = 0; i < dBiasesMatrix.length; i++) {
+                dBiasesMatrix[i] *= scalingFactor;
+            }
+            
+            if (super.getDebug()) {
+                System.out.println("Bias gradients scaled by: " + scalingFactor + 
+                                  " (norm: " + l2Norm + ")");
+            }
+        }
+    }
+    
+    private void scaleInputGradients() {
+        // Calculate Frobenius norm of input gradients
+        double sumSquared = 0.0;
+        double[] dXmatrix = dX.getMatrix();
+        
+        for (int i = 0; i < dXmatrix.length; i++) {
+            sumSquared += dXmatrix[i] * dXmatrix[i];
+        }
+        
+        double frobeniusNorm = Math.sqrt(sumSquared);
+        
+        // Scale gradients if norm exceeds threshold
+        if (frobeniusNorm > inputGradientClipNorm && frobeniusNorm > 0) {
+            double scalingFactor = inputGradientClipNorm / frobeniusNorm;
+            
+            for (int i = 0; i < dXmatrix.length; i++) {
+                dXmatrix[i] *= scalingFactor;
+            }
+            
+            if (super.getDebug()) {
+                System.out.println("Input gradients scaled by: " + scalingFactor + 
+                                  " (norm: " + frobeniusNorm + ")");
+            }
+        }
     }
 
-    public double[] getBiases() {
-        return biases.getMatrix();
+   @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        HashMap<String, JMatrix> parameters = new HashMap<>();
+
+        parameters.put("conv_2d_filters", filters);
+        parameters.put("conv_2d_biases", biases);
+
+        return parameters;
+    }
+
+    @Override
+    protected void setBatchNorm(BatchNorm batchNorm) {
+        batchNorm.build(numFilters);
+        super.setBatchNorm(batchNorm);
     }
 
 
@@ -405,6 +519,26 @@ class Conv2D extends Layer {
     public JMatrix getGradient() {
         return dX;
     }
-    
-}
 
+
+    @Override
+    protected int[] getOutputShape() {
+        int[] outputShape = null;
+        if (Z != null) {
+            outputShape =  Z.shape();
+        }
+        if (getActivation() != null) {
+            getActivation().setOutputShape(outputShape);
+        }
+        if (getDropout() != null) {
+            getDropout().setOutputShape(outputShape);
+        }
+        return outputShape;
+    }
+
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
+    }
+}

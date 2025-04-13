@@ -10,8 +10,8 @@ public class Layers {
     public static Layer Dense(int inputSize, int outputSize) {
         return new Dense(inputSize, outputSize);
     }
-    public static Layer Conv2D(int numFilters, int channels, int filterSize, String padding) {
-        return new Conv2D(numFilters, channels, filterSize, padding);
+    public static Layer Conv2D(int numFilters, int filterSize, String padding) {
+        return new Conv2D(numFilters, filterSize, padding);
     }
     public static Layer MaxPool2D(int poolSize, int stride) {
         return new MaxPool2D(poolSize, stride);
@@ -41,6 +41,10 @@ public class Layers {
 
     public static Layer Upsampling2D(int scaleFactor) {
         return new Upsampling2D(scaleFactor);
+    }
+
+    public static BatchNorm BatchNorm() {
+        return new BatchNorm();
     }
 
     public static Activation customActivation(Function<JMatrix, JMatrix> activation, BiFunction<JMatrix, JMatrix, JMatrix> dActivation) {

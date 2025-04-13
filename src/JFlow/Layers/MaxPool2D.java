@@ -1,5 +1,6 @@
 package JFlow.Layers;
 
+import java.util.HashMap;
 import java.util.stream.IntStream;
 import JFlow.JMatrix;
 
@@ -9,9 +10,15 @@ class MaxPool2D extends Layer {
     private JMatrix output, gradient, lastInput;
 
     protected MaxPool2D(int poolSize, int stride) {
-        super(0, "max_pool_2d");
+        super("max_pool_2d", 0);
         this.poolSize = poolSize;
         this.stride = stride;
+    }
+
+
+    @Override
+    protected int channels() {
+        return getPreviousLayer().channels();
     }
 
     @Override
@@ -55,7 +62,7 @@ class MaxPool2D extends Layer {
     public void backward(JMatrix dOutput, double learningRate) {
         // Save time by avoiding memory reassignment if possible
         if (gradient == null) {
-            gradient = lastInput.copyDims(); // Use lastInput dimensions
+            gradient = lastInput.zerosLike(); // Use lastInput dimensions
         } else {
             gradient.fill(0);
         }
@@ -65,14 +72,6 @@ class MaxPool2D extends Layer {
         double[] lastInputMatrix = lastInput.getMatrix();
 
         // Calculate maxpool gradients
-        // IntStream.range(0, numImages).parallel().forEach(i -> {
-        //     for (int c = 0; c < channels; c++) {
-        //         int inputOffset = i * channels * imageHeight * imageWidth + c * imageHeight * imageWidth;
-        //         int outputOffset = i * channels * outputHeight * outputWidth + c * outputHeight * outputWidth;
-
-        //         backpropMaxPool2D(dOutputMatrix, inputOffset, gradientMatrix, outputOffset, lastInputMatrix); 
-        //     }
-        // });
         IntStream.range(0, numImages).parallel().forEach(i -> {
             for (int c = 0; c < channels; c++) {
                 int inputOffset = i * channels * imageHeight * imageWidth + c * imageHeight * imageWidth;
@@ -110,32 +109,7 @@ class MaxPool2D extends Layer {
             }
         }
     }
-
     // Calculate the max pool gradient for one image
-    // private void backpropMaxPool2D(double[] dOutput, int inputOffset, double[] gradient, int outputOffset, double[] lastInput) {
-    //     for (int sX = 0; sX < outputHeight; sX++) {
-    //         for (int sY = 0; sY < outputWidth; sY++) {
-    //             double max = Double.NEGATIVE_INFINITY;
-    //             int maxIndex = 0;
-
-    //             for (int poolX = 0; poolX < poolSize; poolX++) {
-    //                 for (int poolY = 0; poolY < poolSize; poolY++) {
-    //                     int x = sX * stride + poolX;
-    //                     int y = sY * stride + poolY;
-    //                     int idx = inputOffset + x * imageWidth + y;
-
-    //                     if (lastInput[idx] > max) { 
-    //                         max = lastInput[idx];
-    //                         maxIndex = idx;
-    //                     }
-    //                 }
-    //             }
-
-    //             // Pass the gradient only to the max index
-    //             gradient[maxIndex] += dOutput[outputOffset + sX * outputWidth + sY];
-    //         }
-    //     }
-    // }
     private void backpropMaxPool2D(double[] dOutput, int dOutputOffset, double[] gradient, int gradientOffset, double[] lastInput) {
         for (int sX = 0; sX < outputHeight; sX++) {
             for (int sY = 0; sY < outputWidth; sY++) {
@@ -173,6 +147,33 @@ class MaxPool2D extends Layer {
     @Override
     public JMatrix getGradient() {
         return null; 
+    }
+
+    @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        return null;
+    }
+
+    @Override
+    protected int[] getOutputShape() {
+        int[] outputShape = null;
+        if (output != null) {
+            outputShape = output.shape();
+        }
+        if (getActivation() != null) {
+            getActivation().setOutputShape(outputShape);
+        }
+        if (getDropout() != null) {
+            getDropout().setOutputShape(outputShape);
+        }
+        return outputShape;
+    }
+
+
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
     }
     
 }

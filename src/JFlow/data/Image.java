@@ -1,6 +1,5 @@
 package JFlow.data;
 
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -14,25 +13,54 @@ public class Image {
     private double[][][] raw;
     private int yData;
     private double[][][] xData;
+    private boolean grayscale;
+    private String path;
 
+
+    /*
+     * grayscaleCheck is currently buggy, so the user
+     * must denote whether a directory is grayscale
+     * or RGB.
+     */
+    protected Image(String path, int label, boolean grayscale, boolean lowMemoryMode) {
+        this.path = path;
+        this.grayscale = grayscale;
+        if (!lowMemoryMode) {
+            try {
+                BufferedImage img = ImageIO.read(new File(path));
+                // 1 channel for grayscale, 3 for RGB
+                if (grayscale) {
+                    raw = loadGrayscaleImage(img);
+                } else {
+                    raw = loadRGBImage(img);
+                }
+                xData = raw;
     
-    protected Image(String path, int label, boolean grayscale) {
-        try {
-            BufferedImage img = ImageIO.read(new File(path));
-
-            // 1 channel for grayscale, 3 for RGB
-            if (grayscale) {
-                raw = loadGrayscaleImage(img);
-            } else {
-                raw = loadRGBImage(img);
+            } catch (IOException e) {
+                System.err.println("Error loading image: " + e.getMessage());
             }
-            xData = raw;
-
-        } catch (IOException e) {
-            System.err.println("Error loading image: " + e.getMessage());
         }
         yData = label;
     }
+    // protected Image(String path, int label, boolean grayscale) {
+    //     this.path = path;
+    //     this.grayscale = grayscale;
+    //     try {
+    //         BufferedImage img = ImageIO.read(new File(path));
+
+    //         // 1 channel for grayscale, 3 for RGB
+    //         if (grayscale) {
+    //             raw = loadGrayscaleImage(img);
+    //         } else {
+    //             raw = loadRGBImage(img);
+    //         }
+    //         xData = raw;
+
+    //     } catch (IOException e) {
+    //         System.err.println("Error loading image: " + e.getMessage());
+    //     }
+    //     yData = label;
+    // }
     // Flattened image from csv
     protected Image(double[] image, int label) {
         int size = (int)Math.pow(image.length, 0.5);
@@ -56,12 +84,39 @@ public class Image {
 
 
     // Cumulative application of transforms
-    protected void applyTransform(Function<double[][][], double[][][]> transform) {
+    protected void applyTransform(Function<double[][][], double[][][]> transform, boolean lowMemoryMode) {
+        if (xData == null) {
+            try {
+                BufferedImage img = ImageIO.read(new File(path));
+    
+                // 1 channel for grayscale, 3 for RGB
+                if (grayscale) {
+                    xData= loadGrayscaleImage(img);
+                } else {
+                    xData = loadRGBImage(img);
+                }
+            } catch (IOException e) {
+                System.err.println("Error loading image: " + e.getMessage());
+            }
+        }
         xData = transform.apply(xData);
     }
 
     public double[][][] getData() {
         return xData;
+    }
+
+    public double getPixel(int flatIndex) {
+        int height = xData[0].length;
+        int width = xData[0][0].length;
+        int channelSize = height * width;
+
+        int channelIndex = flatIndex / channelSize;
+        int reuse = flatIndex % channelIndex;
+        int heightIndex = reuse / width;
+        int widthIndex = reuse % width;
+
+        return xData[channelIndex][heightIndex][widthIndex];
     }
 
     public int getLabel() {
@@ -71,6 +126,19 @@ public class Image {
 
     // Flatten the image to 1D, keeping channels separate
     public double[] getFlat() {
+        if (xData == null) {
+            try {
+                BufferedImage img = ImageIO.read(new File(path));
+    
+                if (grayscale) {
+                    xData =  loadGrayscaleImage(img);
+                } else {
+                    xData = loadRGBImage(img);
+                }
+            } catch (IOException e) {
+                System.err.println("Error loading image: " + e.getMessage());
+            }
+        }
         int channels = xData.length;
         int height = xData[0].length;
         int width = xData[0][0].length;
@@ -88,6 +156,19 @@ public class Image {
     }
 
     public double[][][] getPixels() {
+        if (raw == null) {
+            try {
+                BufferedImage img = ImageIO.read(new File(path));
+    
+                if (grayscale) {
+                    return loadGrayscaleImage(img);
+                } else {
+                    return loadRGBImage(img);
+                }
+            } catch (IOException e) {
+                System.err.println("Error loading image: " + e.getMessage());
+            }
+        }
         return raw;
     }
 
@@ -103,87 +184,38 @@ public class Image {
         return xData[0][0].length;
     }
 
+    // Unload after a batch to save memory
+    public void unload() {
+        raw = xData = null;
+    }
 
-    // Return true if an image is grayscale
-    // private boolean grayscaleCheck(BufferedImage img) {
-    //     img = ensureRGB(img);
-    //     int width = img.getWidth();
-    //     int height = img.getHeight();
-    //     double totalDifference = 0;
-    //     int numPixels = width * height;
-    
-    //     for (int y = 0; y < height; y++) { 
-    //         for (int x = 0; x < width; x++) { 
-    //             int argb = img.getRGB(x, y);
-    //             int red   = (argb >> 16) & 0xFF;
-    //             int green = (argb >> 8)  & 0xFF;
-    //             int blue  = (argb)       & 0xFF;
-    
-    //             // Compute difference from average grayscale value
-    //             int avg = (red + green + blue) / 3;
-    //             totalDifference += Math.abs(red - avg) + Math.abs(green - avg) + Math.abs(blue - avg);
-    //         }
-    //     }
-    
-    //     // If the average deviation is very small, consider it grayscale
-    //     return (totalDifference / numPixels) < 5; // Tweak threshold if needed
-    // }
-    // private boolean grayscaleCheck(BufferedImage img) {
-    //     img = ensureRGB(img);
-    //     int width = img.getWidth();
-    //     int height = img.getHeight();
-    
-    //     for (int y = 0; y < height; y++) { 
-    //         for (int x = 0; x < width; x++) { 
-    //             int argb = img.getRGB(x, y);
-    //             int red   = (argb >> 16) & 0xFF;
-    //             int green = (argb >> 8)  & 0xFF;
-    //             int blue  = (argb)       & 0xFF;
-    
-    //             if (red != green || green != blue) {
-    //                 return false;
-    //             }
-    //         }
-    //     }
-    //     return true;
-    // }
+    // Return true if an image is grayscale, CURRENTLY BUGGY
     private boolean grayscaleCheck(BufferedImage img) {
-    int width = img.getWidth();
-    int height = img.getHeight();
-    Set<Integer> uniqueColors = new HashSet<>();
+        int width = img.getWidth();
+        int height = img.getHeight();
+        Set<Integer> uniqueColors = new HashSet<>();
 
-    for (int y = 0; y < height; y++) { 
-        for (int x = 0; x < width; x++) { 
-            int argb = img.getRGB(x, y);
-            int red   = (argb >> 16) & 0xFF;
-            int green = (argb >> 8)  & 0xFF;
-            int blue  = (argb)       & 0xFF;
+        for (int y = 0; y < height; y++) { 
+            for (int x = 0; x < width; x++) { 
+                int argb = img.getRGB(x, y);
+                int red   = (argb >> 16) & 0xFF;
+                int green = (argb >> 8)  & 0xFF;
+                int blue  = (argb)       & 0xFF;
 
-            // Store the unique grayscale intensity
-            uniqueColors.add(red);
+                // Store the unique grayscale intensity
+                uniqueColors.add(red);
 
-            // If we find non-gray pixels, exit early
-            if (red != green || green != blue) {
-                return false;
+                // If we find non-gray pixels, exit early
+                if (red != green || green != blue) {
+                    return false;
+                }
             }
         }
+        return true;
     }
-    return true;
-}
 
 
-    private BufferedImage ensureRGB(BufferedImage img) {
-        if (img.getType() != BufferedImage.TYPE_INT_RGB) {
-            BufferedImage converted = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_RGB);
-            Graphics2D g2d = converted.createGraphics();
-            g2d.drawImage(img, 0, 0, null);
-            g2d.dispose();
-            return converted;
-        }
-        return img;
-    }
-    
-
+    // Load an image as grayscale: (1, height, width)
     private double[][][] loadGrayscaleImage(BufferedImage img) {
         int width = img.getWidth();
         int height = img.getHeight();
@@ -199,6 +231,7 @@ public class Image {
         return grayscaleArray;
     }
 
+    // Load an image as RGB: (3, height, width)
     private double[][][] loadRGBImage(BufferedImage img) {
         int width = img.getWidth();
         int height = img.getHeight();
@@ -213,6 +246,27 @@ public class Image {
             }
         }
         return rgbArray;
+    }
+
+    // Convert an RGB to grayscale
+    private double[][][] loadRGBAsGrayscaleImage(BufferedImage img) {
+        int width = img.getWidth();
+        int height = img.getHeight();
+        double[][][] grayscaleArray = new double[1][height][width]; 
+    
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                int argb = img.getRGB(x, y);
+                int r = (argb >> 16) & 0xFF; // Red
+                int g = (argb >> 8) & 0xFF;  // Green
+                int b = (argb) & 0xFF;       // Blue
+                
+                // Grayscale equation
+                double grayscale = 0.2989 * r + 0.5870 * g + 0.1140 * b;
+                grayscaleArray[0][y][x] = grayscale;
+            }
+        }
+        return grayscaleArray;
     }
 }
     

@@ -34,6 +34,52 @@ public class Transform {
         );
     }
 
+    // Polarize grayscale pixel values to black (0) and white (255) only 
+    public void grayscaleFullContrast() {
+        transforms.add(
+            image -> {
+                int channels = image.length;
+                int height = image[0].length;
+                int width = image[0][0].length;
+        
+                double[][][] contrasted = new double[channels][height][width];
+
+                for (int c = 0; c < channels; c++) {
+                    for (int i = 0; i < height; i++) {
+                        for (int j = 0; j < width; j++) {
+                            contrasted[c][i][j] = (image[c][i][j] > 0) ? 255 : 0;
+                        }
+                    }
+                }
+        
+                return contrasted;
+            }
+        );
+    }
+
+    // Invert grayscale values (black -> white, etc.)
+    public void grayscaleInvert() {
+        transforms.add(
+            image -> {
+                int channels = image.length;
+                int height = image[0].length;
+                int width = image[0][0].length;
+        
+                double[][][] inverted = new double[channels][height][width];
+        
+                for (int c = 0; c < channels; c++) {
+                    for (int i = 0; i < height; i++) {
+                        for (int j = 0; j < width; j++) {
+                            inverted[c][i][j] = 255 - image[c][i][j];
+                        }
+                    }
+                }
+        
+                return inverted;
+            }
+        );
+    }
+
     // Rotate image: 90, 180, or 270 degrees
     public void randomRotation() {
         transforms.add(
@@ -50,28 +96,63 @@ public class Transform {
             }
         );
     }
-
-    // Temporary simplified version for increasing size
-    public void resize(int height, int width) {
+    // 50% chance to flip the image horizontally
+    public void randomFlip() {
         transforms.add(
             image -> {
-                int oldHeight = image[0].length;
-                int oldWidth = image[0][0].length;
-                int channels = image.length;
-                double[][][] resized = new double[channels][height][width];
-                for (int c = 0; c < channels; c++) {
-                    for (int h = 0; h < oldHeight; h++) {
-                        for (int w = 0; w < oldWidth; w++) {
-                            resized[c][h][w] = image[c][h][w];
+                if (Math.random() > 0.5) {
+                    int channels = image.length;
+                    double[][][] rotatedImage = copy(image);
+                    for (int c = 0; c < channels; c++) {
+                        for (int r = 0; r < 2; r++) {
+                            rotatedImage[c] = DataUtility.transpose(rotatedImage[c]);
                         }
                     }
+                    return rotatedImage;
+                } else {
+                    return image;
                 }
-                return resized;
+            }
+        );
+    }
+    // Add random brightness to the image and clip to range
+    public void randomBrightness() {
+        transforms.add(
+            image -> {
+                double low = DataUtility.min(image);
+                double high = DataUtility.max(image);
+                // Random value from -0.2 to 0.2
+                double brightness = Math.random() / 2.5 - 0.2;
+                return DataUtility.clip(DataUtility.add(image, brightness), low, high);
             }
         );
     }
 
-
+    // Resize with nearest-neighbor interpolation
+    public void resize(int height, int width) {
+        transforms.add(image -> {
+            int channels = image.length;
+            int oldHeight = image[0].length;
+            int oldWidth = image[0][0].length;
+            
+            double[][][] resized = new double[channels][height][width];
+    
+            for (int c = 0; c < channels; c++) {
+                for (int i = 0; i < height; i++) {
+                    for (int j = 0; j < width; j++) {
+                        int srcY = (int) Math.round(((double) i / height) * oldHeight);
+                        int srcX = (int) Math.round(((double) j / width) * oldWidth);
+                        srcY = Math.min(srcY, oldHeight - 1);
+                        srcX = Math.min(srcX, oldWidth - 1);
+                        
+                        resized[c][i][j] = image[c][srcY][srcX];
+                    }
+                }
+            }
+            
+            return resized;
+        });
+    }
     private double[][][] copy(double[][][] arr) {
         int channels = arr.length;
         int height = arr[0].length;
@@ -91,21 +172,4 @@ public class Transform {
     public void resize(int width, int height, String method) {
         // TODO
     }
-
-    // Flattens a 3D array to 1D
-    public static double[] flatten3D(double[][][] arr) {
-        int d1 = arr.length; int d2 = arr[0].length; int d3 = arr[0][0].length;
-        double[] flattened = new double[d1 * d2 * d3];
-        int index = 0;
-        for (int i = 0; i < d1; i++) {
-            for (int j = 0; j < d2; j++) {
-                for (int k = 0; k < d3; k++) {
-                    flattened[index] = arr[i][j][k];
-                    index++;
-                }
-            }
-        }
-        return flattened;
-    }
-
 }

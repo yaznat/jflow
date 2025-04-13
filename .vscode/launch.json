@@ -1,0 +1,37 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "CNNDemo",
+            "request": "launch",
+            "mainClass": "CNNDemo",
+            "projectName": "JFlow-Repository_ece08b98"
+        },
+        {
+            "type": "java",
+            "name": "Temp",
+            "request": "launch",
+            "mainClass": "Temp",
+            "projectName": "JFlow-Repository_ece08b98"
+        },
+        {
+            "type": "java",
+            "name": "NNDemo",
+            "request": "launch",
+            "mainClass": "NNDemo",
+            "projectName": "JFlow-Repository_ece08b98"
+        }
+    ]
+} // {
+//     "version": "0.2.0",
+//     "configurations": [
+//       {
+//         "type": "java",
+//         "name": "Launch Java with Vector API",
+//         "request": "launch",
+//         "mainClass": "NNDemo",
+//         "vmArgs": "--add-modules jdk.incubator.vector"
+//       }
+//     ]
+//   }
+  

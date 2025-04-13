@@ -41,7 +41,7 @@ public class JPlot {
         for (int i = 0; i < size; i++) {
             for (int j = 0; j < size; j++) {
                 for (int k = 0; k < channels; k++) {
-                    displayImage[i][j][k] = (image[k * size * size + i * size + j] + 1) * 127.5;
+                    displayImage[i][j][k] = image[k * size * size + i * size + j];
                 }
             }
         }

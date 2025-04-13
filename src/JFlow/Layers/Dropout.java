@@ -1,6 +1,7 @@
 package JFlow.Layers;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ForkJoinPool;
@@ -8,14 +9,24 @@ import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
 
-class Dropout {
+class Dropout extends Component{
     private double alpha;
     private JMatrix dropoutMask;
     private double[] dropoutMaskFlat;
+    private int[] outputShape;
+
     public Dropout(double alpha) {
+        super("dropout", 0);
         this.alpha = alpha;
     }
-    public double alpha(){
+    protected void setOutputShape(int[] outputShape) {
+        this.outputShape = outputShape;
+    }
+    @Override
+    protected int[] getOutputShape() {
+        return outputShape;
+    }
+    protected double alpha(){
         return alpha;
     }
     // Set dropout mask. Return usually not needed.
@@ -71,7 +82,17 @@ class Dropout {
 
     // apply dropout in both forward and backward propagation
     public JMatrix applyDropout(JMatrix layer)  {
-        // multiply with max and scale nonzero results
-        return dropoutMask.multiply(layer);
+        // multiply with mask and scale nonzero results to keep sum ~ the same
+        return dropoutMask.multiply(layer).multiply(1 + alpha);
+    }
+
+    @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        return new HashMap<>();
+    }
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
     }
 }

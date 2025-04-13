@@ -1,11 +1,15 @@
 package JFlow.Layers;
 
+import java.util.HashMap;
 import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
 
 class Tanh extends Activation{
 
+    public Tanh() {
+        super("tanh", 0);
+    }
     @Override
     JMatrix applyActivation(JMatrix input) {
         double[] output = new double[input.size()];
@@ -29,6 +33,16 @@ class Tanh extends Activation{
             dZ[i] = gMatrix[i] * dTanh; 
         });
         return new JMatrix(dZ, Z.length(), Z.channels(), Z.height(), Z.width());
+    }
+
+    @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        return new HashMap<>();
+    }
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
     }
     
 }

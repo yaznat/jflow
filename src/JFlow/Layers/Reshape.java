@@ -1,16 +1,22 @@
 package JFlow.Layers;
 
+import java.util.HashMap;
+
 import JFlow.JMatrix;
 
 class Reshape extends Layer{
     private int newChannels, newHeight, newWidth, oldChannels, oldHeight, oldWidth, oldLength;
 
     public Reshape(int channels, int height, int width) {
-        super(0, "reshape");
+        super("reshape", 0);
         this.newChannels = channels;
         this.newHeight = height;
         this.newWidth = width;
+    }
 
+    @Override
+    protected int channels() {
+        return newChannels;
     }
 
     @Override
@@ -65,6 +71,22 @@ class Reshape extends Layer{
     public JMatrix getGradient() {
         // TODO Auto-generated method stub
         throw new UnsupportedOperationException("Unimplemented method 'getGradient'");
+    }
+
+    @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        return null;
+    }
+
+    @Override
+    protected int[] getOutputShape() {
+        return new int[] {oldLength, newChannels, newHeight, newWidth};
+    }
+
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
     }
     
 }

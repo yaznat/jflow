@@ -18,7 +18,7 @@ class ImageDisplay extends JPanel{
         int width = image[0].length;
 
 
-        // Since JFrame has a minimum "visual" width > 0
+        // Since JFrame has a minimum visual width > 0
         if (height < 100 && scaleFactor < 2) {
             scaleFactor = 2;
         }

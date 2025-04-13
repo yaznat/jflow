@@ -1,11 +1,13 @@
 package JFlow.Layers;
 
+import java.util.HashMap;
 import java.util.stream.IntStream;
 import JFlow.JMatrix;
 
 class LeakyReLU extends Activation{
     private double alpha;
     public LeakyReLU(double alpha) {
+        super("leaky_re_lu", 0);
         this.alpha = alpha;
     }
 
@@ -47,5 +49,16 @@ class LeakyReLU extends Activation{
         });
 
         return new JMatrix(dZ, Z.length(), Z.channels(), Z.height(), Z.width());
+    }
+
+    @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        return new HashMap<>();
+    }
+
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
     }
 }

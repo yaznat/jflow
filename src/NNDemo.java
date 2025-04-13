@@ -5,7 +5,7 @@ import JFlow.data.*;
 import JFlow.utils.Metrics;
 
 /*
- * In this demo, we train a simple neural network on the MNIST dataset.
+ * In this demo, we train a neural network on the MNIST dataset.
  * Reaches ~97% test accuracy after 10 epochs.
  */
 public class NNDemo {
@@ -31,7 +31,7 @@ public class NNDemo {
         loader.setSeed(42);
         loader.trainTestSplit(0.95);
 
-        // Declare the batch size
+        // Set batch size
         loader.batch(64);
 
         int numClasses = 10;
@@ -40,14 +40,20 @@ public class NNDemo {
         Sequential model = new Sequential();
 
         model.add(Layers.Dense(784, 128)); // (Input size, output size)
-        model.add(Layers.Dropout(0.3));
         model.add(Layers.ReLU());
-        
-        model.add(Layers.Dense(128, numClasses));
+
+        model.add(Layers.Dense(128, 64));
+        model.add(Layers.ReLU());
+        model.add(Layers.Dropout(0.4)); // Disable 40% of the neurons
+
+        model.add(Layers.Dense(64, numClasses));
         model.add(Layers.Softmax());
 
+        // Print a summary in the terminal
+        model.summary();
+
     // load trained weights
-        // model.loadWeights("MNIST NN 128"); 
+        // model.loadWeights("MNIST NN"); 
 
 
         // Use the Metrics class for model metrics
@@ -57,7 +63,7 @@ public class NNDemo {
          * Automatically train the model on batches in the dataloader.
          * Specify number of epochs and learning rate.
          */
-        model.train(loader, 10, 0.25);
+        model.train(loader, 10, 0.1);
 
         int[] predictions = model.predict(loader.getTestImagesFlat());
 
@@ -68,7 +74,7 @@ public class NNDemo {
         System.out.println("Test accuracy:" + newAccuracy);
 
         if (newAccuracy > oldAccuracy) {
-            model.saveWeights("MNIST NN 128"); // Save weights to .txt files
+            model.saveWeights("MNIST NN"); // Save weights to .txt files
         }
     }
 }

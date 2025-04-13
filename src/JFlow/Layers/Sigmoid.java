@@ -1,10 +1,15 @@
 package JFlow.Layers;
 
+import java.util.HashMap;
 import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
 
 class Sigmoid extends Activation{
+
+    public Sigmoid() {
+        super("sigmoid", 0);
+    }
 
     @Override
     JMatrix applyActivation(JMatrix input) {
@@ -29,6 +34,17 @@ class Sigmoid extends Activation{
             dZ[i] = gMatrix[i] * dSigmoid;
         });
         return new JMatrix(dZ, Z.length(), Z.channels(), Z.height(), Z.width());
+    }
+
+    @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        return new HashMap<>();
+    }
+
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
     }
 
     

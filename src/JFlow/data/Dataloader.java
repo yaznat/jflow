@@ -19,16 +19,32 @@ public class Dataloader {
     private ArrayList<Image> trainImages = new ArrayList<Image>(); 
     private ArrayList<Image> testImages = new ArrayList<Image>(); 
 
-    private int batchSize = -1;
-    private int numBatches;
+    private int batchSize = -1, numBatches;
+
+    private boolean lowMemoryMode = false;
 
     public Dataloader () {}
+
+    /*
+     * When low memory mode is on, 
+     * raw pixel values are not 
+     * stored after transformation.
+     * Displaying images requires a
+     * small reload delay.
+     */
+    public void setLowMemoryMode(boolean on) {
+        lowMemoryMode = true;
+    }
+
+    public boolean isLowMemoryModeOn() {
+        return lowMemoryMode;
+    }
 
     // Apply a transform to all of the images
     public void applyTransform(Transform transform) {
         for (Image image : images) {
             for (Function<double[][][], double[][][]> function : transform.getTransforms()) {
-                image.applyTransform(function);
+                image.applyTransform(function, lowMemoryMode);
             }
         }
     }
@@ -44,7 +60,29 @@ public class Dataloader {
         for (int i = 0; i < numImages; i++) {
             if (files[i].getAbsolutePath().endsWith(".png") || 
                     files[i].getAbsolutePath().endsWith(".jpg"))
-                images.add(new Image(files[i].getAbsolutePath(), label, grayscale));
+                images.add(new Image(files[i].getAbsolutePath(), label, grayscale, lowMemoryMode));
+        }
+    }
+
+    // load a folder of images into the dataset with a certain label and resize
+    public void loadFromDirectory(String directory, int label, double percentOfDirectory, boolean grayscale, int[] resize) {
+        File dir = new File(directory);
+
+        File[] files = dir.listFiles();
+
+        int numImages = (int)(files.length * percentOfDirectory);
+
+        Transform transform = new Transform();
+        transform.resize(resize[0], resize[1]);
+
+        Function<double[][][], double[][][]> resizeFunc = transform.getTransforms().get(0);
+
+        for (int i = 0; i < numImages; i++) {
+            if (files[i].getAbsolutePath().endsWith(".png") || 
+                    files[i].getAbsolutePath().endsWith(".jpg")) {
+                images.add(new Image(files[i].getAbsolutePath(), label, grayscale, lowMemoryMode));
+                images.getLast().applyTransform(resizeFunc, lowMemoryMode);
+            }
         }
     }
 
@@ -66,7 +104,7 @@ public class Dataloader {
                 if ((files[index].getAbsolutePath().endsWith(".png") || 
                     files[index].getAbsolutePath().endsWith(".jpg")) && 
                     label != -1)
-                    images.add(new Image(files[index].getAbsolutePath(), label, grayscale));
+                    images.add(new Image(files[index].getAbsolutePath(), label, grayscale, lowMemoryMode));
                 index++;
             }
         } catch (Exception e) {
@@ -83,8 +121,6 @@ public class Dataloader {
         }
     }
     
-
-
 
     // load flattened images from csv
     public void loadFromCSV(String path, boolean areLabelsFirstItem, double percent) {
@@ -244,7 +280,7 @@ public class Dataloader {
      * For each image in the dataset add a duplicate,
      * and apply a transform it.
      */
-    public void doubleDatasetWithAugmentation(Transform transform) {
+    public void applyAugmentations(Transform augmentations) {
         ArrayList<Image> arrayToUse;
         if (trainImages.isEmpty()) {
             arrayToUse = images;
@@ -253,14 +289,12 @@ public class Dataloader {
         }
         int numImages = arrayToUse.size();
         for (int i = 0; i < numImages; i++) {
-            Image original = arrayToUse.get(i);
-            Image augmented = new Image(original.getData(), original.getLabel());
+            Image augmented = arrayToUse.get(i);
             for  (Function<double[][][], double[][][]> 
-                function : transform.getTransforms()) {
+                function : augmentations.getTransforms()) {
                 
-                augmented.applyTransform(function);
+                augmented.applyTransform(function, lowMemoryMode);
             }
-            arrayToUse.add(augmented);
         }
     }
 

@@ -1,25 +1,22 @@
 package JFlow.Layers;
 
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.RecursiveAction;
+import java.util.HashMap;
 
 import JFlow.JMatrix;
 
-abstract class Layer {
+abstract class Layer extends Component{
 
     private Layer nextLayer;
     private Layer previousLayer;
 
     private Activation activation;
-
-    private int numTrainableParameters;
-    private String nameID;
     private Dropout dropout;
+    private BatchNorm batchNorm;
+
     private boolean debug;
 
-    protected Layer(int numTrainableParameters, String nameID) {
-        this.numTrainableParameters = numTrainableParameters;
-        this.nameID = nameID;
+    protected Layer(String name, int numTrainableParameters) {
+        super(name, numTrainableParameters);
     }
 
 
@@ -29,6 +26,8 @@ abstract class Layer {
 
     protected abstract JMatrix getOutput();
     protected abstract JMatrix getGradient();
+
+    protected abstract int channels();
 
     protected void setDebug(boolean debug) {
         this.debug = debug;
@@ -40,6 +39,14 @@ abstract class Layer {
 
     protected void setActivation(Activation activation) {
         this.activation = activation;
+    }
+
+    protected void setBatchNorm(BatchNorm batchNorm) {
+        this.batchNorm = batchNorm;
+    }
+
+    protected BatchNorm getBatchNorm() {
+        return batchNorm;
     }
 
     protected Layer getNextLayer() {
@@ -65,17 +72,9 @@ abstract class Layer {
         return dropout;
     }
 
-    protected int numTrainableParameters() {
-        return numTrainableParameters;
-    }
-    protected void setIDnum(int IDnum) {
-        nameID += "_" + IDnum;
-    }
-    protected String getNameID() {
-        return nameID;
-    }
-
     protected Activation getActivation() {
         return activation;
     }
+
+    
 }

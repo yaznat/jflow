@@ -1,15 +1,20 @@
 package JFlow.Layers;
 
+import java.util.HashMap;
+
 import JFlow.JMatrix;
 
 class Dense extends Layer{
     private JMatrix weights, dWeights, vWeights, A, Z, dZ, lastInput, gOutput, biases, dBiases, vBiases;
+    private int inputSize, outputSize;
     // For momentum updates
     private final double beta = 0.9;
 
 
     protected Dense(int inputSize, int outputSize) {
-        super(inputSize * outputSize + outputSize, "dense");
+        super("dense", inputSize * outputSize + outputSize);
+        this.inputSize = inputSize;
+        this.outputSize = outputSize;
         // Initialize weights and biases
         double[] weights = new double[outputSize * inputSize];
         double[] biases = new double[outputSize];
@@ -35,13 +40,6 @@ class Dense extends Layer{
         vBiases = new JMatrix(outputSize, 1, 1, 1);
     }
 
-    public double[] getWeights() {
-        return weights.getMatrix();
-    }
-    public double[] getBiases() {
-        return biases.getMatrix();
-    }
-
     @Override
     public void forward(JMatrix input, boolean training) {
         if (getPreviousLayer() == null || !(getPreviousLayer() instanceof Dense)) {
@@ -54,10 +52,15 @@ class Dense extends Layer{
         try {
             A = weights.dot(input, true); // scaled dot product
         } catch (IllegalArgumentException e) {
-
+            
             A = weights.transpose2D().dot(input, true);
         }
         applyBiasByRow(A, biases); 
+
+        // Apply BatchNorm
+        if (getBatchNorm() != null) {
+            A = getBatchNorm().forward(A, training);
+        }
 
         // Apply activation
         if (getActivation() != null) {
@@ -66,8 +69,6 @@ class Dense extends Layer{
             Z = A;
         }
         
-
-
         // Apply dropout
         if (getDropout() != null && training) {
             getDropout().newDropoutMask(Z.length(), Z.channels() * Z.height() * Z.width()); // Generate new mask
@@ -81,13 +82,13 @@ class Dense extends Layer{
     @Override
     public void backward(JMatrix gradient, double learningRate) {
 
-        if (getDebug()) {
-            System.out.println("Dense");
-            System.out.println("Input images:" + gradient.length());
-            System.out.println("Input channels:" + gradient.channels());
-            System.out.println("Input height:" + gradient.height());
-            System.out.println("Input width:" + gradient.width());
-        }
+        // if (getDebug()) {
+        //     System.out.println("Dense");
+        //     System.out.println("Input images:" + gradient.length());
+        //     System.out.println("Input channels:" + gradient.channels());
+        //     System.out.println("Input height:" + gradient.height());
+        //     System.out.println("Input width:" + gradient.width());
+        // }
 
         // Calculate dActivation
         if (getActivation() != null) {
@@ -95,6 +96,12 @@ class Dense extends Layer{
         } else {
             dZ = gradient;
         }
+
+        // Apply BatchNorm
+        if (getBatchNorm() != null) {
+            dZ = getBatchNorm().backward(dZ, learningRate);
+        }
+
         // Apply dropout
         if (super.getDropout() != null) {
             dZ = getDropout().applyDropout(dZ);
@@ -110,9 +117,9 @@ class Dense extends Layer{
         }
 
         // Normalize dWeights and dBiases
-        int batchSize = lastInput.channels() * lastInput.height() * lastInput.width();
-        dWeights = adaptiveGradientClip(weights, dWeights, 1e-2);
-        dBiases = dBiases.multiply(1.0 / batchSize);
+        JMatrix[] clips = adaptiveGradientClip(weights, biases, dWeights, dBiases, 1e-2);
+        dWeights = clips[0];
+        dBiases = clips[1];
             
         if (getDebug()){
             System.out.println("Max dense weights: " + weights.max());
@@ -136,6 +143,10 @@ class Dense extends Layer{
         } catch (IllegalArgumentException e) {
             gOutput = weights.transpose2D().dot(dZ.transpose2D(), true); // scaled
         }
+
+        //  if (gOutput.absMax() < 1e-4) {
+        //     gOutput = gOutput.multiply(10.0);
+        //  }
          
 
         if (getPreviousLayer() != null) {
@@ -156,16 +167,36 @@ class Dense extends Layer{
     }
     
     // Adaptively clip with frobenius norm
-    private JMatrix adaptiveGradientClip(JMatrix weights, JMatrix biases, double epsilon) {
+    private JMatrix[] adaptiveGradientClip(JMatrix weights, JMatrix biases, JMatrix dWeights, JMatrix dBiases, double epsilon) {
+        // Handle weights clipping
         double weightNorm = weights.frobeniusNorm();
-        double gradNorm = dWeights.frobeniusNorm();
-        double maxNorm = Math.max(gradNorm, epsilon * weightNorm);
-
-        if (gradNorm > maxNorm) {
-            double scale = maxNorm / gradNorm;
-            return dWeights.multiply(scale);
+        double gradWeightNorm = dWeights.frobeniusNorm();
+        double maxWeightNorm = Math.max(gradWeightNorm, epsilon * weightNorm);
+        JMatrix clippedDWeights = dWeights;
+        
+        if (gradWeightNorm > maxWeightNorm) {
+            double scaleWeight = maxWeightNorm / gradWeightNorm;
+            clippedDWeights = dWeights.multiply(scaleWeight);
         }
-        return dWeights;
+        
+        // Handle biases clipping
+        double biasNorm = biases.frobeniusNorm();
+        double gradBiasNorm = dBiases.frobeniusNorm();
+        double maxBiasNorm = Math.max(gradBiasNorm, epsilon * biasNorm);
+        JMatrix clippedDBiases = dBiases;
+        
+        if (gradBiasNorm > maxBiasNorm) {
+            double scaleBias = maxBiasNorm / gradBiasNorm;
+            clippedDBiases = dBiases.multiply(scaleBias);
+        }
+        
+        // Return both clipped gradients
+        return new JMatrix[] {clippedDWeights, clippedDBiases};
+    }
+    
+    @Override
+    protected int channels() {
+        return -1;
     }
 
 
@@ -177,6 +208,40 @@ class Dense extends Layer{
     @Override
     public JMatrix getGradient() {
         return gOutput;
+    }
+
+    @Override
+    protected void setBatchNorm(BatchNorm batchNorm) {
+        batchNorm.build(outputSize);
+        super.setBatchNorm(batchNorm);
+    }
+
+    @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        HashMap<String, JMatrix> parameters = new HashMap<>();
+
+        parameters.put("dense_weights", weights);
+        parameters.put("dense_biases", biases);
+
+        return parameters;
+    }
+    
+    @Override
+    protected int[] getOutputShape() {
+        int[] outputShape = new int[] {-1, outputSize};
+        if (getActivation() != null) {
+            getActivation().setOutputShape(outputShape);
+        }
+        if (getDropout() != null) {
+            getDropout().setOutputShape(outputShape);
+        }
+        return outputShape;
+    }
+
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
     }
 }
 

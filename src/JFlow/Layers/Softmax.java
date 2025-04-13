@@ -1,11 +1,14 @@
 package JFlow.Layers;
 
+import java.util.HashMap;
 import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
 
 class Softmax extends Activation{
-    public Softmax(){}
+    public Softmax() {
+        super("softmax", 0);
+    }
 
     @Override
     public JMatrix applyActivation(JMatrix A) {
@@ -40,6 +43,17 @@ class Softmax extends Activation{
     @Override
     JMatrix applyDActivation(JMatrix Z, JMatrix gradient) {
         return Z.subtract(gradient);
+    }
+
+    @Override
+    protected HashMap<String, JMatrix> getWeights() {
+        return new HashMap<>();
+    }
+
+    @Override
+    protected HashMap<String, Double> advancedStatistics() {
+        // TODO Auto-generated method stub
+        throw new UnsupportedOperationException("Unimplemented method 'advancedStatistics'");
     }
 
 }
