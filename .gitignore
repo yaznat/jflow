@@ -1,3 +1,4 @@
 bin/
 src/JFlow/Layers/Recurrent.java
 src/GANDemo.java
+.vscode/
