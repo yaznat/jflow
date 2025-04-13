@@ -1,7 +1,7 @@
 # JFlow
 CPU based machine learning library in Java.  
 High school project.  
-Full documentation soon.  
+Demo files included. Full documentation soon.  
 # Key Features  
 ##  -> Dataloader  
      - Easily load images from csv or directory.  
