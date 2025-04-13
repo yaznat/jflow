@@ -1,6 +1,5 @@
 package JFlow.Layers;
 
-import java.util.HashMap;
 
 import JFlow.JMatrix;
 

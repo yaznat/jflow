@@ -15,7 +15,7 @@ public class NNDemo {
 
         /* 
          * Load flat images from a csv or txt file.
-         * Indicate if labels are the first item in each row.
+         * Indicate if labels are the first item of each row.
          * Specify the percent of all images that you want to load.
          */ 
         loader.loadFromCSV("datasets/MNIST.csv", true, 1.0);
@@ -35,11 +35,12 @@ public class NNDemo {
         loader.batch(64);
 
         int numClasses = 10;
+        int flattenedImageSize = 784;
 
         // Initialize the model
         Sequential model = new Sequential();
 
-        model.add(Layers.Dense(784, 128)); // (Input size, output size)
+        model.add(Layers.Dense(flattenedImageSize, 128)); // (Input size, output size)
         model.add(Layers.ReLU());
 
         model.add(Layers.Dense(128, 64));

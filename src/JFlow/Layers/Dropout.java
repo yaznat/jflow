@@ -1,10 +1,6 @@
 package JFlow.Layers;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ForkJoinPool;
 import java.util.stream.IntStream;
 
 import JFlow.JMatrix;
@@ -49,35 +45,6 @@ class Dropout extends Component{
         });
 
         return dropoutMaskFlat;
-    }
-
-   // Apply dropout to a flat array representing the convolutional output
-    public void applyDropoutConv(double[] layer, int numImages, int numFilters, int height, int width) {
-        int featureMapSize = height * width;
-        ForkJoinPool pool = ForkJoinPool.commonPool(); 
-
-        List<Callable<Void>> tasks = new ArrayList<>();
-
-        for (int img = 0; img < numImages; img++) {
-            for (int filter = 0; filter < numFilters; filter++) {
-                final int imageIdx = img;
-                final int filterIdx = filter;
-                tasks.add(() -> {
-                    double mask = dropoutMaskFlat[filterIdx];
-                    int startIdx = (imageIdx * numFilters + filterIdx) * featureMapSize;
-                    for (int i = 0; i < featureMapSize; i++) {
-                        layer[startIdx + i] *= mask / (1 - alpha);
-                    }
-                    return null;
-                });
-            }
-        }
-
-        try {
-            pool.invokeAll(tasks);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     // apply dropout in both forward and backward propagation

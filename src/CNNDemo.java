@@ -149,7 +149,7 @@ public class CNNDemo {
         System.out.println("Test accuracy:" + newAccuracy);
 
         if (newAccuracy > oldAccuracy) {
-            model.saveWeights("Cifar10 CNN Cars vs Trucks 2"); // Save weights to .txt files
+            model.saveWeights("Cifar10 CNN Cars vs Trucks"); // Save weights to .txt files
         }
     }
 }

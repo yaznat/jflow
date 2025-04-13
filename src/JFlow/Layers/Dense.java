@@ -82,14 +82,6 @@ class Dense extends Layer{
     @Override
     public void backward(JMatrix gradient, double learningRate) {
 
-        // if (getDebug()) {
-        //     System.out.println("Dense");
-        //     System.out.println("Input images:" + gradient.length());
-        //     System.out.println("Input channels:" + gradient.channels());
-        //     System.out.println("Input height:" + gradient.height());
-        //     System.out.println("Input width:" + gradient.width());
-        // }
-
         // Calculate dActivation
         if (getActivation() != null) {
             dZ = getActivation().applyDActivation(Z, gradient);
@@ -142,12 +134,7 @@ class Dense extends Layer{
             gOutput = weights.transpose2D().dot(dZ, true); // scaled
         } catch (IllegalArgumentException e) {
             gOutput = weights.transpose2D().dot(dZ.transpose2D(), true); // scaled
-        }
-
-        //  if (gOutput.absMax() < 1e-4) {
-        //     gOutput = gOutput.multiply(10.0);
-        //  }
-         
+        }  
 
         if (getPreviousLayer() != null) {
             getPreviousLayer().backward(gOutput, learningRate);

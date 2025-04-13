@@ -247,7 +247,6 @@ class Conv2D extends Layer {
         double[] dXmatrix = dX.getMatrix();
         double[] filtersMatrix = filters.getMatrix();
 
-        // Calculate input gradients
         IntStream.range(0, numImages).parallel().forEach(i -> {
             for (int c = 0; c < numChannels; c++) {  
                 int dXBase = (i * numChannels + c) * inputHeight * inputWidth;
@@ -264,7 +263,7 @@ class Conv2D extends Layer {
                             // For each position in the filter
                             for (int fh = 0; fh < filterSize; fh++) {
                                 for (int fw = 0; fw < filterSize; fw++) {
-                                    // Flip filter for gradient calculation (180° rotation)
+                                    // Flip filter by 180 degrees for gradient calculation 
                                     int flippedFh = filterSize - 1 - fh;
                                     int flippedFw = filterSize - 1 - fw;
                                     
@@ -362,11 +361,10 @@ class Conv2D extends Layer {
         avgGradMagnitude /= dFilters.length;
         
         // Adjust learning rate based on gradient magnitude
-        // double adaptiveLR = learningRate;
-        // if (avgGradMagnitude > 0.1) {
-        //     adaptiveLR = learningRate * (0.1 / avgGradMagnitude);
-        // }
-        double adaptiveLR = learningRate / (1.0 + avgGradMagnitude * 10.0);
+        double adaptiveLR = learningRate;
+        if (avgGradMagnitude > 0.1) {
+            adaptiveLR = learningRate * (0.1 / avgGradMagnitude);
+        }
         
         // Iterate over each filter
         for (int k = 0; k < numFilters; k++) {
