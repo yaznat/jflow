@@ -18,6 +18,7 @@ import JFlow.data.Image;
 import java.util.List;
 import java.util.function.Function;
 
+// The sequential object represents a model
 public class Sequential {
     private ArrayList<Layer> layers = new ArrayList<Layer>();
     private ArrayList<Component> components = new ArrayList<Component>();
@@ -77,14 +78,6 @@ public class Sequential {
     public void train(Dataloader loader, int epochs, Function<Integer, Double> scheduler) {
         runTraining(loader, epochs, -1, scheduler, null);
     }
-
-    // public void train(Dataloader loader, int epochs, double learningRate, String savePath) {
-    //     runTraining(loader, epochs, learningRate, null, savePath);
-    // }
-
-    // public void train(Dataloader loader, int epochs, LearningRateScheduler scheduler, String savePath) {
-    //     runTraining(loader, epochs, -1, scheduler, savePath);
-    // }
 
     private void runTraining(Dataloader loader, int epochs, double learningRate, 
         Function<Integer,Double> scheduler, String savePath) {
@@ -153,17 +146,17 @@ public class Sequential {
                     loss += "0";
                 }
                 loss = loss.substring(0, 6);
+
+                String epochCount = String.valueOf(epoch);
+                while (epochCount.length() < epochLength) {
+                    epochCount = "0" + epochCount;
+                }
+
                 long batchTime = System.nanoTime();
                 long timeSinceStart = batchTime - startTime;
                 long timePerBatch = timeSinceStart / (batch + 1);
                 long timeRemaining = timePerBatch * (numBatches - (batch + 1));
 
-                // Keep length consistent so reports aren't jumpy
-                String epochCount = String.valueOf(epoch);
-                
-                while (epochCount.length() < epochLength) {
-                    epochCount = "0" + epochCount;
-                }
 
                 String report = "\rEpoch: " + epochCount + "/" + epochs + 
                     " | Batch: " + (batch + 1) + "/" + numBatches + 
@@ -175,10 +168,7 @@ public class Sequential {
                 report += " | Loss: " + loss;
                 System.out.print(report);
             }
-            // long endTime = System.nanoTime();
-            // long duration = endTime - startTime;
             System.out.println("\n      Accuracy: " + (accuracy / loader.numBatches()));
-            // + " | Elapsed time: " + duration * 0.000001 + " miliseconds");
         }
     }
 
