@@ -20,7 +20,7 @@ Demo files included. Full documentation soon.
      - Upsampling2D  
      - Reshape  
      - BatchNorm  
-##  -> Currently supported activations:  
+##  -> Currently supported activation functions:  
      - ReLU  
      - LeakyReLU  
      - Softmax  
