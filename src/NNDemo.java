@@ -1,15 +1,13 @@
-import java.io.IOException;
-
 import JFlow.Layers.*;
 import JFlow.data.*;
 import JFlow.utils.Metrics;
 
-/*
- * In this demo, we train a neural network on the MNIST dataset.
+/**
+ * Demo to train a neural network on the MNIST dataset.
  * Reaches ~97% test accuracy after 10 epochs.
  */
 public class NNDemo {
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         // Initialize the dataloader
         Dataloader loader = new Dataloader();
 
@@ -31,8 +29,7 @@ public class NNDemo {
         loader.setSeed(42);
         loader.trainTestSplit(0.95);
 
-        // Set batch size
-        loader.batch(64);
+        loader.batch(64);  // Set batch size
 
         int numClasses = 10;
         int flattenedImageSize = 784;

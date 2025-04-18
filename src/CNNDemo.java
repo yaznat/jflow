@@ -1,19 +1,24 @@
-import java.io.IOException;
 import java.util.function.Function;
 
 import JFlow.Layers.*;
 import JFlow.data.*;
 import JFlow.utils.Metrics;
 
-/*
- * In this demo, we train a convolutional neural network 
- * to distinguish trucks from automobiles, using the Cifar 10 dataset.
+/**
+ * Demo to train a convolutional neural network (CNN) 
+ * to classify trucks vs. automobiles using the CIFAR-10 dataset.
  */
 public class CNNDemo {
 
-    /*
-     * Create a function that returns a double: 
-     * learning rate from an integer: epoch.
+    /**
+     * Learning rate scheduler
+     * 
+     * @return Returns a learning rate based on the current epoch:
+     * <ul>
+     *   <li><b>Epoch ≤ 10:</b> 0.01</li>
+     *   <li><b>Epoch ≤ 20:</b> 0.003</li>
+     *   <li><b>Epoch > 20:</b> 0.001</li>
+     * </ul>
      */
     public static Function<Integer, Double> lrSchedule() {
         return epoch -> {
@@ -27,7 +32,20 @@ public class CNNDemo {
         };
     }
 
-    public static void main(String[] args) throws IOException {
+    // Helper method adds a block to the model
+    private static void addConvBlock(Sequential model, int filters) {
+        model.add(Layers.Conv2D(filters, 3, "same_padding")); // (filters, kernelSize, paddingType)
+        model.add(Layers.BatchNorm()); // Stabilize activations. Highly recommended
+        model.add(Layers.LeakyReLU(0.01)); // Small leak to prevent dead neurons
+    
+        model.add(Layers.Conv2D(filters, 3, "same_padding"));
+        model.add(Layers.BatchNorm());
+        model.add(Layers.LeakyReLU(0.01));
+    
+        model.add(Layers.MaxPool2D(2, 2)); // (poolSize, stride)
+    }
+
+    public static void main(String[] args) {
         // Initialize the dataloader
         Dataloader loader = new Dataloader();
 
@@ -52,7 +70,7 @@ public class CNNDemo {
 
         // Initialize the transform
         Transform transform = new Transform();
-        transform.normalizeTanH(); // Normalize to [-1, 1]
+        transform.normalizeTanh(); // Normalize to [-1, 1]
 
         // Apply the transform to images in the dataloader
         loader.applyTransform(transform);
@@ -61,16 +79,13 @@ public class CNNDemo {
         loader.setSeed(42);
         loader.trainTestSplit(0.99);
 
-        // Use augmentations for greater variation
+        // Add basic augmentations to train images
         Transform augmentations = new Transform();
         augmentations.randomFlip();
         augmentations.randomBrightness();
-
-        // Only applies augmentations to train images
         loader.applyAugmentations(augmentations);
 
-        // Set batch size
-        loader.batch(64);
+        loader.batch(64); // Set batch size
 
 
         int numClasses = 2; // Binary classification
@@ -80,40 +95,16 @@ public class CNNDemo {
         // Initialize the model
         Sequential model = new Sequential();
 
-        model.setInputShape(colorChannels, imageSize, imageSize); // Set input shape for convolutional layers
+        model.setInputShape(colorChannels, imageSize, imageSize); // (Channels, height, width)
 
         // Block 1
-        model.add(Layers.Conv2D(32, 3, "same_padding")); // (numFilters, filterSize, padding type)
-        model.add(Layers.BatchNorm()); // Stabilize activations. Highly recommended
-        model.add(Layers.LeakyReLU(0.01)); // Small leak to prevent dead neurons
-
-        model.add(Layers.Conv2D(32, 3, "same_padding")); 
-        model.add(Layers.BatchNorm());
-        model.add(Layers.LeakyReLU(0.01)); 
-
-        model.add(Layers.MaxPool2D(2, 2)); // (poolSize, stride)
+        addConvBlock(model, 32);
 
         // Block 2
-        model.add(Layers.Conv2D(64, 3, "same_padding"));
-        model.add(Layers.BatchNorm());
-        model.add(Layers.LeakyReLU(0.01));
-
-        model.add(Layers.Conv2D(64, 3, "same_padding"));
-        model.add(Layers.BatchNorm());
-        model.add(Layers.LeakyReLU(0.01));
-        
-        model.add(Layers.MaxPool2D(2, 2));
+        addConvBlock(model, 64);
 
         // Block 3
-        model.add(Layers.Conv2D(128, 3, "same_padding"));
-        model.add(Layers.BatchNorm());
-        model.add(Layers.LeakyReLU(0.01));
-
-        model.add(Layers.Conv2D(128, 3, "same_padding"));
-        model.add(Layers.BatchNorm());
-        model.add(Layers.LeakyReLU(0.01));
-        
-        model.add(Layers.MaxPool2D(2, 2));
+        addConvBlock(model, 128);
 
         // Flattened fully connected layers
         model.add(Layers.Dense((imageSize / 8) * (imageSize / 8) * 128, 128)); // (inputSize, outputSize)
@@ -129,7 +120,6 @@ public class CNNDemo {
 
     // load trained weights
         // model.loadWeights("Cifar10 CNN Cars vs Trucks");
-
 
         // Use the Metrics class for model metrics
         double oldAccuracy = Metrics.getAccuracy(model.predict(loader.getTestImages()), loader.getTestLabels());
