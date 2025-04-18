@@ -25,7 +25,7 @@ public class Transform {
     }
 
     // Normalize data to [-1, 1]
-    public void normalizeTanH() {
+    public void normalizeTanh() {
 
         transforms.add(
             image -> {
