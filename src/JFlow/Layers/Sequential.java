@@ -88,7 +88,6 @@ public class Sequential {
         int imageHeight = loader.getBatches().get(0).get(0).getHeight();
         int imageWidth = loader.getBatches().get(0).get(0).getWidth();
 
-        
 
         double[][] xBatches = new double[numBatches][batchSize * channels * imageHeight * imageWidth];
 
@@ -106,11 +105,6 @@ public class Sequential {
                 System.arraycopy(image, 0, images, startIdx, image.length);
                 
                 labels[i] = batch.get(i).getLabel();
-
-                // Save memory by eliminating duplicate data
-                if (loader.isLowMemoryModeOn()) {
-                    batch.get(i).unload();
-                }
             }
             
             xBatches[count] = images;

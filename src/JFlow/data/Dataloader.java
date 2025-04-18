@@ -43,8 +43,8 @@ public class Dataloader {
     // Apply a transform to all of the images
     public void applyTransform(Transform transform) {
         for (Image image : images) {
-            for (Function<double[][][], double[][][]> function : transform.getTransforms()) {
-                image.applyTransform(function, lowMemoryMode);
+            for (Function<double[][][], double[][][]> func : transform.getTransforms()) {
+                image.addTransform(func);
             }
         }
     }
@@ -81,7 +81,7 @@ public class Dataloader {
             if (files[i].getAbsolutePath().endsWith(".png") || 
                     files[i].getAbsolutePath().endsWith(".jpg")) {
                 images.add(new Image(files[i].getAbsolutePath(), label, grayscale, lowMemoryMode));
-                images.getLast().applyTransform(resizeFunc, lowMemoryMode);
+                images.getLast().addTransform(resizeFunc);
             }
         }
     }
@@ -293,7 +293,7 @@ public class Dataloader {
             for  (Function<double[][][], double[][][]> 
                 function : augmentations.getTransforms()) {
                 
-                augmented.applyTransform(function, lowMemoryMode);
+                augmented.addTransform(function);
             }
         }
     }

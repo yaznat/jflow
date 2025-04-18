@@ -3,6 +3,7 @@ package JFlow.data;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
@@ -11,10 +12,12 @@ import javax.imageio.ImageIO;
 
 public class Image {
     private double[][][] raw;
-    private int yData;
+    private int yData, channels;
     private double[][][] xData;
-    private boolean grayscale;
+    private boolean grayscale, lowMemoryMode;
     private String path;
+    private ArrayList<Function<double[][][], double[][][]>> transforms = 
+    new ArrayList<Function<double[][][], double[][][]>>(1);
 
 
     /*
@@ -25,42 +28,13 @@ public class Image {
     protected Image(String path, int label, boolean grayscale, boolean lowMemoryMode) {
         this.path = path;
         this.grayscale = grayscale;
+        this.channels = (grayscale) ? 1 : 3;
+        this.lowMemoryMode = lowMemoryMode;
         if (!lowMemoryMode) {
-            try {
-                BufferedImage img = ImageIO.read(new File(path));
-                // 1 channel for grayscale, 3 for RGB
-                if (grayscale) {
-                    raw = loadGrayscaleImage(img);
-                } else {
-                    raw = loadRGBImage(img);
-                }
-                xData = raw;
-    
-            } catch (IOException e) {
-                System.err.println("Error loading image: " + e.getMessage());
-            }
+            load();
         }
         yData = label;
     }
-    // protected Image(String path, int label, boolean grayscale) {
-    //     this.path = path;
-    //     this.grayscale = grayscale;
-    //     try {
-    //         BufferedImage img = ImageIO.read(new File(path));
-
-    //         // 1 channel for grayscale, 3 for RGB
-    //         if (grayscale) {
-    //             raw = loadGrayscaleImage(img);
-    //         } else {
-    //             raw = loadRGBImage(img);
-    //         }
-    //         xData = raw;
-
-    //     } catch (IOException e) {
-    //         System.err.println("Error loading image: " + e.getMessage());
-    //     }
-    //     yData = label;
-    // }
     // Flattened image from csv
     protected Image(double[] image, int label) {
         int size = (int)Math.pow(image.length, 0.5);
@@ -72,37 +46,44 @@ public class Image {
             }
         }
         yData = label;
-        xData = raw;
     }
 
     protected Image(double[][][] image, int label) {
         raw = image;
-
         yData = label;
-        xData = raw;
     }
 
-
-    // Cumulative application of transforms
-    protected void applyTransform(Function<double[][][], double[][][]> transform, boolean lowMemoryMode) {
-        if (xData == null) {
-            try {
-                BufferedImage img = ImageIO.read(new File(path));
-    
-                // 1 channel for grayscale, 3 for RGB
-                if (grayscale) {
-                    xData= loadGrayscaleImage(img);
-                } else {
-                    xData = loadRGBImage(img);
-                }
-            } catch (IOException e) {
-                System.err.println("Error loading image: " + e.getMessage());
+    private void load() {
+        try {
+            BufferedImage img = ImageIO.read(new File(path));
+            // 1 channel for grayscale, 3 for RGB
+            if (grayscale) {
+                raw = loadGrayscaleImage(img);
+            } else {
+                raw = loadRGBImage(img);
             }
+            xData = raw;
+
+        } catch (IOException e) {
+            System.err.println("Error loading image: " + e.getMessage());
         }
-        xData = transform.apply(xData);
+    }
+
+    private void applyTransforms() {
+        for (Function<double[][][], double[][][]> transform : transforms) {
+            xData = transform.apply(xData);
+        }
+    }
+
+    protected void addTransform(Function<double[][][], double[][][]> transform) {
+        transforms.add(transform);
     }
 
     public double[][][] getData() {
+        if (xData == null) {
+            load();
+            applyTransforms();
+        }
         return xData;
     }
 
@@ -124,20 +105,12 @@ public class Image {
     }
 
 
+
     // Flatten the image to 1D, keeping channels separate
     public double[] getFlat() {
         if (xData == null) {
-            try {
-                BufferedImage img = ImageIO.read(new File(path));
-    
-                if (grayscale) {
-                    xData =  loadGrayscaleImage(img);
-                } else {
-                    xData = loadRGBImage(img);
-                }
-            } catch (IOException e) {
-                System.err.println("Error loading image: " + e.getMessage());
-            }
+            load();
+            applyTransforms();
         }
         int channels = xData.length;
         int height = xData[0].length;
@@ -152,40 +125,40 @@ public class Image {
                 }
             }
         }
+        if (lowMemoryMode) {
+            unload();
+        }
         return flat;
     }
 
     public double[][][] getPixels() {
         if (raw == null) {
-            try {
-                BufferedImage img = ImageIO.read(new File(path));
-    
-                if (grayscale) {
-                    return loadGrayscaleImage(img);
-                } else {
-                    return loadRGBImage(img);
-                }
-            } catch (IOException e) {
-                System.err.println("Error loading image: " + e.getMessage());
-            }
+            load();
         }
         return raw;
     }
 
     public int getWidth() {
+        if (xData == null) {
+            load();
+            applyTransforms();
+        }
         return xData[0].length;
     }
 
     public int numChannels() {
-        return xData.length;
+        return channels;
     }
 
     public int getHeight() {
+        if (xData == null) {
+            load();
+            applyTransforms();
+        }
         return xData[0][0].length;
     }
 
-    // Unload after a batch to save memory
-    public void unload() {
+    private void unload() {
         raw = xData = null;
     }
 
