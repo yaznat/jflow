@@ -69,7 +69,8 @@ public class Adam extends Optimizer{
         }
     }
 
-    protected void init(TrainableLayer layer) {
+    @Override
+    protected void initializeLayer(TrainableLayer layer) {
         JMatrix[] gradients = layer.getParameterGradients();
         int numWeights = gradients.length;
 

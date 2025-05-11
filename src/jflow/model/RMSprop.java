@@ -73,7 +73,7 @@ public class RMSprop extends Optimizer {
     }
 
     @Override
-    public void init(TrainableLayer layer) {
+    public void initializeLayer(TrainableLayer layer) {
         JMatrix[] parameters = layer.getParameterGradients();
         
         // Without momentum: one matrix per parameter

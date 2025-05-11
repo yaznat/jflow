@@ -17,7 +17,7 @@ public abstract class Optimizer {
 
     public abstract void apply(HashMap<String, JMatrix[]> layerGradients);
 
-    protected abstract void init(TrainableLayer layer);
+    protected abstract void initializeLayer(TrainableLayer layer);
 
     protected String getName() {
         return name;

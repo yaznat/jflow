@@ -94,7 +94,7 @@ public class Sequential{
         for (jflow.layers.internal.Layer l : layers) {
             if (l instanceof TrainableLayer) {
                 TrainableLayer trainable = (TrainableLayer)l;
-                optimizer.init(trainable);
+                optimizer.initializeLayer(trainable);
                 /*
                  * Store references to internal gradients.
                  * References always remain valid.

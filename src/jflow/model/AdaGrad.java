@@ -46,7 +46,7 @@ public class AdaGrad extends Optimizer {
     }
 
     @Override
-    public void init(TrainableLayer layer) {
+    public void initializeLayer(TrainableLayer layer) {
         JMatrix[] parameters = layer.getParameterGradients();
         JMatrix[] accumSquaredGrads = new JMatrix[parameters.length];
         

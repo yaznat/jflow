@@ -62,7 +62,7 @@ public class SGD extends Optimizer {
     }
     
     @Override
-    protected void init(TrainableLayer layer) {
+    protected void initializeLayer(TrainableLayer layer) {
         JMatrix[] gradients = layer.getParameterGradients();
         int numWeights = gradients.length;
 
