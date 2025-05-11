@@ -38,6 +38,8 @@ Demo files included. Full documentation soon.
      - Softmax  
      - Sigmoid  
      - Tanh  
+     - Swish
+     - Mish
      - Custom Activation (Easy to implement)  
 ## -> Currently supported optimizers:
      - Adam

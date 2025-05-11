@@ -109,6 +109,20 @@ public class Builder {
     }
 
     /**
+     * The Swish activation.
+     */
+    public static Layer Swish() {
+        return new Layer(new Swish());
+    }
+
+    /**
+     * The Mish activation.
+     */
+    public static Layer Mish() {
+        return new Layer(new Mish());
+    }
+
+    /**
      * The Dropout function. <p>
      * @param alpha             The percent of nuerons to drop.
      * 

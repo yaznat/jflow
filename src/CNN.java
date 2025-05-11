@@ -12,7 +12,7 @@ public class CNN extends Builder{
     private static void addConvBlock(Sequential model, int filters) {
         model
             .add(Conv2D(filters, 3, 1, "same_padding"))
-            .add(LeakyReLU(0.01))
+            .add(Swish())
             .add(BatchNorm())
             .add(Dropout(0.1))
 
@@ -77,7 +77,7 @@ public class CNN extends Builder{
         model
             .add(Flatten())
             .add(Dense(128))
-            .add(LeakyReLU(0.01))
+            .add(Swish())
             .add(Dropout(0.3))
 
             .add(Dense(1))

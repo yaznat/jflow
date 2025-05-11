@@ -3,7 +3,7 @@ import jflow.model.*;
 import jflow.utils.Metrics;
 
 /**
- * Demo to train a simple neural network on the MNIST dataset.
+ * Demo to train a neural network on the MNIST dataset.
  * Reaches ~97% test accuracy after 10 epochs.
  */
 public class NN extends Builder{
@@ -32,11 +32,12 @@ public class NN extends Builder{
         // Build the model
         Sequential model = new Sequential()
             .add(Dense(128, InputShape(flattenedImageSize)))
-            .add(ReLU())
+            .add(Mish())
 
             .add(Dense(64))
-            .add(ReLU())
-            .add(Dropout(0.2))
+            .add(Mish())
+            .add(Dropout(0.3))
+
 
             .add(Dense(numClasses))
             .add(Softmax())
@@ -52,7 +53,7 @@ public class NN extends Builder{
         double oldAccuracy = Metrics.getAccuracy(model.predict(loader.getTestImagesFlat()), loader.getTestLabels());
 
         // Train the model
-        model.train(loader, 15);
+        model.train(loader, 10);
 
         // Evaluate the model
         int[] predictions = model.predict(loader.getTestImagesFlat());
