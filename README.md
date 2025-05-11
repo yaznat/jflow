@@ -42,6 +42,9 @@ Demo files included. Full documentation soon.
      - Mish
      - Custom Activation (Easy to implement)  
 ## -> Currently supported optimizers:
+     - SGD
+     - AdaGrad
+     - RMSprop
      - Adam
 ##  -> Utils  
      - Plot images, confusion matrixes, and more.  
