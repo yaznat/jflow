@@ -1,0 +1,9 @@
+bin/
+.vscode/
+.DS_Store
+commit-template.txt
+src/jflow/layers/internal/ResidualConnection.java
+src/jflow/layers/internal/Recurrent.java
+src/GANDemo.java
+src/DenseGANDemo.java
+src/GAPTest.java
