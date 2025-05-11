@@ -47,13 +47,17 @@ public class NN extends Builder{
     // load trained weights
         // model.loadWeights("MNIST NN"); 
 
-
+    // Try out different optimizers
+        // model.compile(SGD(0.1, 0.9, true));
+        // model.compile(AdaGrad(0.01));
+        // model.compile(RMSprop(0.001, 0.9, 1e-8, 0.9));
         model.compile(Adam(0.01));
+
 
         double oldAccuracy = Metrics.getAccuracy(model.predict(loader.getTestImagesFlat()), loader.getTestLabels());
 
         // Train the model
-        model.train(loader, 10);
+        model.train(loader, 10); // Prints detailed progress callback
 
         // Evaluate the model
         int[] predictions = model.predict(loader.getTestImagesFlat());

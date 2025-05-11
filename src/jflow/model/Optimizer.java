@@ -11,30 +11,13 @@ public abstract class Optimizer {
     private String name;
 
     protected Optimizer(String name){
-
+        this.name = name;
     }
     
 
     public abstract void apply(HashMap<String, JMatrix[]> layerGradients);
 
-    protected void init(TrainableLayer layer) {
-        JMatrix[] gradients = layer.getParameterGradients();
-        int numWeights = gradients.length;
-
-        JMatrix[] moments = new JMatrix[numWeights * 2];
-
-        for (int i = 0; i < numWeights; i++) {
-            // Initialized to zero
-            JMatrix mWeights = new JMatrix(gradients[i].shape());
-            moments[2 * i] = mWeights;
-        
-            JMatrix vWeights = new JMatrix(gradients[i].shape());
-            moments[2 * i + 1] = vWeights;
-        }
-
-        layerMoments.put(layer, moments);
-        layerID.put(layer.getName(), layer);
-    }
+    protected abstract void init(TrainableLayer layer);
 
     protected String getName() {
         return name;

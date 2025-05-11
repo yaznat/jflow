@@ -185,20 +185,91 @@ public class Builder {
 
 
     /**
-     * The Adam Optimizer
+     * The Adam Optimizer.
      * @param beta1                     The momentum coefficient of the first moment.
      * @param beta2                     The momentum coefficient of the second moment.
-     * @param learningRate              The learning rate to apply in training.
+     * @param learningRate              The learning rate for parameter updates.
      */
     public static Optimizer Adam(double beta1, double beta2, double learningRate) {
         return new Adam(beta1, beta2, learningRate);
     }
 
     /**
-     * The Adam Optimizer
-     * @param learningRate              The learning rate to apply in training.
+     * The Adam Optimizer.
+     * @param learningRate              The learning rate for parameter updates.
      */
     public static Optimizer Adam(double learningRate) {
         return new Adam(learningRate);
+    }
+
+    /**
+     * The SGD optimizer without momentum.
+     * 
+     * @param learningRate The learning rate for parameter updates.
+     */
+    public static Optimizer SGD(double learningRate) {
+        return new SGD(learningRate);
+    }
+
+    /**
+     * The SGD optimizer with momentum.
+     * 
+     * @param learningRate The learning rate for parameter updates.
+     * @param momentum The momentum coefficient.
+     * @param useNesterov Whether to use Nesterov accelerated gradient.
+     */
+    public static Optimizer SGD(double learningRate, double momentum, boolean useNesterov) {
+        return new SGD(learningRate, momentum, useNesterov);
+    }
+
+
+    /**
+     * The RMSprop optimizer with default parameters and without momentum.
+     * 
+     * @param learningRate The learning rate for parameter updates.
+     */
+    public static Optimizer RMSprop(double learningRate) {
+        return new RMSprop(learningRate);
+    }
+
+    /**
+     * The RMSprop optimizer with custom parameters and without momentum.
+     * 
+     * @param learningRate                  The learning rate for parameter updates.
+     * @param decay                         The decay rate for running average of squared gradients.
+     * @param epsilon                       Small constant for numerical stability.
+     */
+    public static Optimizer RMSprop(double learningRate, double decay, double epsilon) {
+        return new RMSprop(learningRate, decay, epsilon);
+    }
+
+    /**
+     * The RMSprop optimizer with custom parameters and momentum.
+     * 
+     * @param learningRate                  The learning rate for parameter updates.
+     * @param decay                         The decay rate for running average of squared gradients.
+     * @param epsilon                       Small constant for numerical stability.
+     * @param momentum                      The momentum coefficient.
+     */
+    public static Optimizer RMSprop(double learningRate, double decay, double epsilon, double momentum) {
+        return new RMSprop(learningRate, decay, epsilon, momentum);
+    }
+
+    /**
+     * The Adagrad optimizer.
+     * 
+     * @param learningRate The base learning rate for parameter updates.
+     */
+    public static Optimizer AdaGrad(double learningRate) {
+        return new AdaGrad(learningRate);
+    }
+
+    /**
+     * The Adagrad optimizer with custom epsilon.
+     * @param learningRate                  The base learning rate for parameter updates. 
+     * @param epsilon                       Small constant for numerical stability. 
+     */
+    public static Optimizer AdaGrad(double learningRate, double epsilon) {
+        return new AdaGrad(learningRate, epsilon);
     }
 }

@@ -89,8 +89,13 @@ public class CNN extends Builder{
     // Load trained weights
         // model.loadWeights("saved_weights/Cifar10 CNN Cars vs Trucks");
 
+    // Try out different optimizers
+        // model.compile(SGD(0.01, 0.9, true));
+        // model.compile(AdaGrad(0.01));
+        // model.compile(RMSprop(0.001, 0.9, 1e-8, 0.9));
         model.compile(Adam(0.001));
 
+        
 
         double oldAccuracy = Metrics.getAccuracy(model.predict(loader.getTestImages()), loader.getTestLabels());
 

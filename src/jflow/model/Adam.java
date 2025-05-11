@@ -7,17 +7,20 @@ import jflow.data.JMatrix;
 import jflow.layers.templates.TrainableLayer;
 
 public class Adam extends Optimizer{
-    private double beta1, beta2, learningRate, epsilon = 1e-8;
+    private double beta1; // Momentum coefficient of the first moment
+    private double beta2; // Momentum coefficient of the second moment
+    private double learningRate;
+    private double epsilon = 1e-8; // Small constant for numerical stability
     private int timesteps = 0;
 
-    public Adam(double beta1, double beta2, double learningRate) {
+    protected Adam(double beta1, double beta2, double learningRate) {
         super("adam");
         this.beta1 = beta1;
         this.beta2 = beta2;
         this.learningRate = learningRate;
     }
 
-    public Adam(double learningRate) {
+    protected Adam(double learningRate) {
         super("adam");
         this.beta1 = 0.9;
         this.beta2 = 0.999;
@@ -30,7 +33,7 @@ public class Adam extends Optimizer{
         timesteps++;
         for (Map.Entry<String, JMatrix[]> entry : layerGradients.entrySet()) {
             TrainableLayer layer = getLayerID().get(entry.getKey());
-            // System.out.println(entry.getKey());
+
             JMatrix[] gradients = entry.getValue();
 
             JMatrix[] moments = getMoments().get(layer);
@@ -64,5 +67,24 @@ public class Adam extends Optimizer{
             // Apply updates
             layer.updateParameters(updates);
         }
+    }
+
+    protected void init(TrainableLayer layer) {
+        JMatrix[] gradients = layer.getParameterGradients();
+        int numWeights = gradients.length;
+
+        JMatrix[] moments = new JMatrix[numWeights * 2];
+
+        for (int i = 0; i < numWeights; i++) {
+            // Initialized to zero
+            JMatrix mWeights = gradients[i].zerosLike();
+            moments[2 * i] = mWeights;
+        
+            JMatrix vWeights = gradients[i].zerosLike();
+            moments[2 * i + 1] = vWeights;
+        }
+
+        getMoments().put(layer, moments);
+        getLayerID().put(layer.getName(), layer);
     }
 }

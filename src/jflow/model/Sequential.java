@@ -135,7 +135,7 @@ public class Sequential{
     }
 
     /**
-     * Train the model with a fixed learning rate.
+     * Train the model.
      * @param loader                A Dataloader containing train images.
      * @param epochs                The number of epochs to train.
      */
@@ -143,15 +143,15 @@ public class Sequential{
         runTraining(loader, epochs, null, null);
     }
 
-    /**
-     * Train the model with a learning rate scheduler.
-     * @param loader                A Dataloader containing train images.
-     * @param epochs                The number of epochs to train.
-     * @param scheduler             A function that returns a Double, learningRate, from an Integer, epoch.
-     */
-    public void train(Dataloader loader, int epochs, Function<Integer, Double> scheduler) {
-        runTraining(loader, epochs, scheduler, null);
-    }
+    // /**
+    //  * Train the model with a learning rate scheduler.
+    //  * @param loader                A Dataloader containing train images.
+    //  * @param epochs                The number of epochs to train.
+    //  * @param scheduler             A function that returns a Double, learningRate, from an Integer, epoch.
+    //  */
+    // public void train(Dataloader loader, int epochs, Function<Integer, Double> scheduler) {
+    //     runTraining(loader, epochs, scheduler, null);
+    // }
 
     private void runTraining(Dataloader loader, int epochs,
         Function<Integer,Double> scheduler, String savePath) {
