@@ -30,13 +30,13 @@
 - Save and load model weights.  
 
 #### Supported Layers  
-- **Dense**: Fully connected layer.  
-- **Conv2D**: Convolutional layer.  
-- **MaxPool2D**: Max pooling layer.  
-- **Upsampling2D**: Upsampling layer for generator networks.  
-- **BatchNorm**: Batch normalization layer.  
-- **Flatten**: Flatten layer for transitioning between dimensions.  
-- **GlobalAveragePooling2D**: Global average pooling layer.  
+- **Dense**  
+- **Conv2D**
+- **MaxPool2D**
+- **Upsampling2D**
+- **BatchNorm**
+- **Flatten**  
+- **GlobalAveragePooling2D**
 
 #### Supported Activation Functions  
 - **ReLU**, **LeakyReLU**, **Sigmoid**, **Tanh**, **Softmax**, **Swish**, **Mish**.  
