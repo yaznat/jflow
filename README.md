@@ -1,54 +1,50 @@
-# JFlow
-CPU based machine learning library in Java.  
-High school project.  
-Demo files included. Full documentation soon.  
-# Strengths  
-## -> Memory Optimization  
-     - Option of low memory mode for unlimited dataset size.  
-     - Train large models with limited resources:  
-          - Cifar10 CNN, 1M parameters: < 2G RAM (with low memory mode)  
-          - Cifar10 CNN, 5M paramters: < 3G RAM (with low memory mode)  
-## -> Low level control and debugging  
-     - A clean Keras-similar UI provides the desired level of control over training.  
-     - Custom train steps are easy to implement.  
-     - Debug mode allows inspection of model gradients.  
-# Key Features  
-##  -> Dataloader  
-     - Easily load images from csv or directory.  
-     - Provides useful features such as train-test-split and data batching.  
-##  -> Transform  
-     - Normalize and augment images with a variety of built-in functions.  
-##  -> Sequential  
-     - Build models with a simple UI.  
-     - High level functions: train, predict.  
-     - Low level functions: forward(data) and backward(data) for complex train steps.  
-     - Save and load weights.  
-##  -> Currently supported layers:  
-     - Dense  
-     - Conv2D   
-     - MaxPool2D  
-     - Upsampling2D  
-     - Reshape  
-     - BatchNorm  
-     - Flatten
-     - GlobalAveragePooling2D
-##  -> Currently supported activation functions:  
-     - ReLU  
-     - LeakyReLU  
-     - Softmax  
-     - Sigmoid  
-     - Tanh  
-     - Swish
-     - Mish
-     - Custom Activation (Easy to implement)  
-## -> Currently supported optimizers:
-     - SGD
-     - AdaGrad
-     - RMSprop
-     - Adam
-##  -> Utils  
-     - Plot images, confusion matrixes, and more.  
-##  -> JMatrix data type  
-     - Custom data type to aid in low level use cases.  
-     - Stores dimensional information and provides statistics.  
-     - Offers operations such as transpose2D and broadcastable mathmatic functions.  
+# JFlow  
+
+**JFlow** is a memory-efficient deep learning library designed in Java for both educational purposes and real-world machine learning applications. It provides low-level control over model training and supports limited hardware.  
+
+### Strengths  
+
+#### Memory Optimization  
+- **Low Memory Mode**: Train large models with limited resources (ideal for datasets larger than system memory).  
+    - Example: **CIFAR-10 CNN**, 1M parameters, < 2GB RAM with low memory mode  
+    - Example: **CIFAR-10 CNN**, 5M parameters, < 3GB RAM with low memory mode  
+
+#### Low-level Control & Debugging  
+- Clean, Keras-similar UI for model training.  
+- Implement custom training steps easily.  
+- Debug mode for inspecting gradients.  
+
+### Key Features  
+
+#### Dataloader  
+- Load images from CSV or directory.  
+- Train-test-split and data batching.  
+
+#### Transform  
+- Normalize and augment images with built-in functions.  
+
+#### Sequential Model  
+- Build models with a simple UI.  
+    - High-level functions: train, predict.  
+    - Low-level functions: forward(data), backward(data).  
+- Save and load model weights.  
+
+#### Supported Layers  
+- **Dense**: Fully connected layer.  
+- **Conv2D**: Convolutional layer.  
+- **MaxPool2D**: Max pooling layer.  
+- **Upsampling2D**: Upsampling layer for generator networks.  
+- **BatchNorm**: Batch normalization layer.  
+- **Flatten**: Flatten layer for transitioning between dimensions.  
+- **GlobalAveragePooling2D**: Global average pooling layer.  
+
+#### Supported Activation Functions  
+- **ReLU**, **LeakyReLU**, **Sigmoid**, **Tanh**, **Softmax**, **Swish**, **Mish**.  
+- **Custom Activation**: Easy to implement.  
+
+#### Supported Optimizers  
+- **SGD**, **AdaGrad**, **RMSprop**, **Adam**.  
+
+#### Utilities  
+- Plot images and confusion matrices.  
+- JMatrix data type for low-level matrix operations.  
