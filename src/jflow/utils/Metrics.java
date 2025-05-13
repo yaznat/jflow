@@ -77,15 +77,26 @@ public class Metrics {
         long timePerBatch = elapsedTime / (currentBatch + 1);
         long timeRemaining = timePerBatch * (totalBatches - currentBatch);
 
-        String report = "\rEpoch: " + currentEpoch + "/" + totalEpochs + 
-            " | Batch: " + currentBatch + "/" + totalBatches + 
-            " | Time Remaining: " + secondsToClock(
-            (int)(timeRemaining * 0.000000001));
+        String separator = " \033[38;2;222;197;15m|\033[0m ";
+        String teal = "\033[38;2;0;153;153;1m";
+        String orange = "\033[1;38;2;255;165;1m";
+        String blue = "\033[1;94m";
+        String white = "\033[0;37m";
+        String reset = "\033[0m";
 
+        // Replace the last line in the terminal
+        String report = "\r";
+
+        // Add epochs and batches
+        report += orange + "Epoch: " + reset + white + currentEpoch + "/" + totalEpochs + 
+            separator + orange + "Batch: " + reset + white + currentBatch + "/" + totalBatches;
+
+        // Report learning rate if applicable
         if (learningRate != null) {
-            report += " | lr: " + learningRate;
+            report += separator + "lr: " + learningRate;
         }
 
+        // Report losses if applicable
         if (losses != null) {
             for (Map.Entry<String, Double> entry : losses.entrySet()) {
                 String lossName = entry.getKey();       
@@ -99,9 +110,13 @@ public class Metrics {
                 }
                 loss = loss.substring(0, 6);
 
-                report += " | " + lossName + ": " + loss;
+                report += separator + orange + lossName + ": " + reset + white + loss + reset;
             }
         }
+        // Report ETA
+        report += separator + orange + "ETA: " + reset + white + secondsToClock(
+            (int)(timeRemaining * 0.000000001)) + reset;
+        
         System.out.print(report);
     }
 

@@ -7,18 +7,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
 public class Dataloader {
-    private ArrayList<Image> images = new ArrayList<Image>();
+    private ArrayList<Image> images = new ArrayList<>();
 
     private Random random = new Random(0);
 
-    private ArrayList<Image> trainImages = new ArrayList<Image>(); 
-    private ArrayList<Image> testImages = new ArrayList<Image>(); 
+    private ArrayList<Image> trainImages = new ArrayList<>(); 
+    private ArrayList<Image> testImages = new ArrayList<>(); 
+    private ArrayList<Image> valImages = new ArrayList<>();
 
     private int batchSize = -1;
     private int numBatches;
@@ -394,6 +396,27 @@ public class Dataloader {
         System.out.println("Test images: " + testImages.size());
     }
 
+     /**
+      * Shuffle and split images in the Dataloader into train, val, and test.
+      * @param percentVal                       The percentage of images in the validation set (0.0 to 1.0).
+      * @param percentTest                      The percentage of images in the test set (0.0 to 1.0).
+      */
+      public void valTestSplit(double percentVal, double percentTest) {
+        Collections.shuffle(images, random);
+
+        int numValImages = (int) (images.size() * percentVal);
+        int numTestImages = (int) (images.size() * percentTest);
+        int numTrainImages = images.size() - numValImages - numTestImages;
+    
+        trainImages = new ArrayList<>(images.subList(0, numTrainImages));
+        valImages = new ArrayList<>(images.subList(numTrainImages, numTrainImages + numValImages));
+        testImages = new ArrayList<>(images.subList(numTrainImages + numValImages, images.size()));
+    
+        System.out.println("Train images: " + trainImages.size());
+        System.out.println("Val images: " + valImages.size());
+        System.out.println("Test images: " + testImages.size());
+    }
+
     /**
       * Apply augmentation functions to train images only.
       * @param augmentations         A Transform with stored augmentation functions.
@@ -416,42 +439,61 @@ public class Dataloader {
         }
     }
 
-     /**
-      * Get test images flattened in the shape (N, size)
+    /**
+      * Get test images in the shape (N, channels, height, width).
+      * @return                                         a JMatrix with shape (N, channels, height, width).
+      * @throws NullPointerException                    if the test dataset is never set.
       */
-    public float[][] getTestImagesFlat() {
+    public JMatrix getTestImages() {
         if (testImages.isEmpty()) {
-            throw new NullPointerException("Test dataset never set");
+            throw new NullPointerException("Test dataset never set.");
         }
         int numImages = testImages.size();
-        // int imageSize = testImages.get(0).getHeight() * testImages.get(0).getWidth() * testImages.get(0).numChannels();
-        float[][] images = new float[numImages][testImages.get(0).getFlat().length];
+        int channels = testImages.get(0).numChannels();
+        int height = testImages.get(0).getHeight();
+        int width = testImages.get(0).getWidth();
+        int imageSize = channels * height * width;
 
+        // Create a JMatrix with image dimensions
+        JMatrix imageBatch = new JMatrix(numImages, channels, height, width);
+
+        // Copy data into the JMatrix
         for (int i = 0; i < numImages; i++) {
-            images[i] = testImages.get(i).getFlat();
+            float[] image = testImages.get(i).getFlat();
+            for (int j = 0; j < imageSize; j++) {
+                imageBatch.set(i * imageSize + j, image[j]);
+            }
         }
 
-        return images;
+        return imageBatch;
     }
 
     /**
-      * Get test images in the shape (N, channels, height, width)
+      * Get validation images in the shape (N, channels, height, width).
+      * @return                                         a JMatrix with shape (N, channels, height, width).
+      * @throws NullPointerException                    if the validation dataset is never set.
       */
-    public float[][][][] getTestImages() {
-        if (testImages.isEmpty()) {
-            throw new NullPointerException("Test dataset never set");
+      public JMatrix getValImages() {
+        if (valImages.isEmpty()) {
+            throw new NullPointerException("Validation dataset never set.");
         }
-        int numImages = testImages.size();
-        int channels =(testImages.get(0)).numChannels();
-        int imageHeight = testImages.get(0).getHeight();
-        int imageWidth = testImages.get(0).getWidth();
-        float[][][][] images = new float[numImages][channels][imageHeight][imageWidth];
+        int numImages = valImages.size();
+        int channels = valImages.get(0).numChannels();
+        int height = valImages.get(0).getHeight();
+        int width = valImages.get(0).getWidth();
+        int imageSize = channels * height * width;
 
+        // Create a JMatrix with image dimensions
+        JMatrix imageBatch = new JMatrix(numImages, channels, height, width);
+
+        // Copy data into the JMatrix
         for (int i = 0; i < numImages; i++) {
-            images[i] = testImages.get(i).getData();
+            float[] image = valImages.get(i).getFlat();
+            for (int j = 0; j < imageSize; j++) {
+                imageBatch.set(i * imageSize + j, image[j]);
+            }
         }
-
-        return images;
+        return imageBatch;
     }
 
     /**
@@ -469,6 +511,37 @@ public class Dataloader {
         }
 
         return labels;
+    }
+
+    /**
+      * Get validation labels in order as an array.
+      */
+      public int[] getValLabels() {
+        if (valImages.isEmpty()) {
+            throw new NullPointerException("Validation dataset never set");
+        }
+        int numImages = valImages.size();
+        int[] labels = new int[numImages];
+
+        for (int i = 0; i < numImages; i++) {
+            labels[i] = valImages.get(i).getLabel();
+        }
+
+        return labels;
+    }
+
+    /**
+     * Get a report of the counts of images among train, validation, and test.
+     * @return a Hashmap containing set names and their counts of images.
+     */
+    public HashMap<String, Integer> imageBreakdown() {
+        HashMap<String, Integer> breakdown = new HashMap<>();
+
+        breakdown.put("train", trainImages.size());
+        breakdown.put("val", valImages.size());
+        breakdown.put("test", testImages.size());
+
+        return breakdown;
     }
 
     private int indexOf(String[] arr, String target) {

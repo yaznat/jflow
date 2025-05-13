@@ -14,7 +14,7 @@ public class CNN extends Builder{
             .add(Conv2D(filters, 3, 1, "same_padding"))
             .add(Swish())
             .add(BatchNorm())
-            .add(Dropout(0.1))
+            .add(Dropout(0.3))
 
             .add(MaxPool2D(2, 2));
     }
@@ -43,7 +43,7 @@ public class CNN extends Builder{
 
         // Prepare data for training
         loader.setSeed(42);
-        loader.trainTestSplit(0.99);
+        loader.valTestSplit(0.01, 0.01);
         loader.batch(64);
 
         // Add simple augmentations to train images
@@ -54,14 +54,14 @@ public class CNN extends Builder{
         loader.applyAugmentations(augmentations);
 
         // CIFAR-10 constants
-        final int colorChannels = 3; // RGB images
-        final int imageSize = 32;
+        final int COLOR_CHANNELS = 3; // RGB images
+        final int IMAGE_SIZE = 32;
 
 
         // Build the model
-        Sequential model = new Sequential();
+        Sequential model = new Sequential("small_CNN");
 
-        model.setInputShape(InputShape(colorChannels, imageSize, imageSize)); 
+        model.setInputShape(InputShape(COLOR_CHANNELS, IMAGE_SIZE, IMAGE_SIZE)); 
 
         // Block 1
         addConvBlock(model, 32);
@@ -96,10 +96,7 @@ public class CNN extends Builder{
         model.compile(Adam(0.001));
 
         
-
         double oldAccuracy = Metrics.getAccuracy(model.predict(loader.getTestImages()), loader.getTestLabels());
-
-        System.out.println(oldAccuracy);
         
         // Train the model
         model.train(loader, 30);

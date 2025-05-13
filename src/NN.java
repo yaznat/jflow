@@ -22,16 +22,16 @@ public class NN extends Builder{
 
         // Prepare data for training
         loader.setSeed(42);
-        loader.trainTestSplit(0.95);
+        loader.valTestSplit(0.05, 0.05);
         loader.batch(64); 
 
         // MNIST constants
-        final int numClasses = 10;
-        final int flattenedImageSize = 784;
+        final int NUM_CLASSES = 10;
+        final int FLAT_IMAGE_SIZE = 784;
 
         // Build the model
-        Sequential model = new Sequential()
-            .add(Dense(128, InputShape(flattenedImageSize)))
+        Sequential model = new Sequential("simple_neural_network")
+            .add(Dense(128, InputShape(FLAT_IMAGE_SIZE)))
             .add(Mish())
 
             .add(Dense(64))
@@ -39,13 +39,13 @@ public class NN extends Builder{
             .add(Dropout(0.3))
 
 
-            .add(Dense(numClasses))
+            .add(Dense(NUM_CLASSES))
             .add(Softmax())
 
             .summary();
         
     // load trained weights
-        // model.loadWeights("MNIST NN"); 
+        // model.loadWeights("saved_weights/MNIST NN"); 
 
     // Try out different optimizers
         // model.compile(SGD(0.1, 0.9, true));
@@ -54,13 +54,17 @@ public class NN extends Builder{
         model.compile(Adam(0.01));
 
 
-        double oldAccuracy = Metrics.getAccuracy(model.predict(loader.getTestImagesFlat()), loader.getTestLabels());
+        double oldAccuracy = Metrics.getAccuracy(
+            model.predict(
+                loader.getTestImages()), 
+            loader.getTestLabels());
+
 
         // Train the model
         model.train(loader, 10); // Prints detailed progress callback
 
         // Evaluate the model
-        int[] predictions = model.predict(loader.getTestImagesFlat());
+        int[] predictions = model.predict(loader.getTestImages());
 
         Metrics.displayConfusionMatrix(predictions, loader.getTestLabels());
 

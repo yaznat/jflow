@@ -24,6 +24,8 @@ import jflow.utils.Metrics;
 public class Sequential{
     private ArrayList<jflow.layers.internal.Layer> layers = new ArrayList<>();
     private int numClasses = -1;
+    private static int sequentialCount;
+    private int modelNum;
     private String name = null;
     private boolean debugMode;
     private Optimizer optimizer;
@@ -31,16 +33,28 @@ public class Sequential{
     private HashMap<String, JMatrix[]> layerGradients = new HashMap<>();
     private HashMap<String, Integer> layerCounts = new HashMap<>();
 
+    private final String TEAL = "\033[38;2;0;153;153;1m";
+    private final String YELLOW = "\033[38;2;222;197;15m";
+    private final String ORANGE = "\033[1;38;2;255;165;1m";
+    private final String BLUE = "\033[1;94m";
+    private final String WHITE = "\033[0;37m";
+    private final String GREEN = "\033[1;38;2;0;204;0m";
+    private final String RED = "\033[1;38;2;255;0;0m";
+    private final String RESET = "\033[0m";
+
     /**
      * Initializes an empty Sequential model.
      */
-    public Sequential(){}
+    public Sequential(){
+        modelNum = sequentialCount++;
+    }
 
     /**
      * Initializes an empty Sequential model.
      */
     public Sequential(String name){
         this.name = name;
+        modelNum = sequentialCount++;
     }
     /**
      * Add a layer to the model.
@@ -159,10 +173,29 @@ public class Sequential{
         if (optimizer == null) {
             setOptimizer(new Adam(0.001));
         }
-        
+        // Store previous epoch values to warn against decline
+        double prevTrainAccuracy = 0;
+        double prevValAccuracy = 0;
+
         // Visually separate training to reduce terminal clutter
         System.out.println("");
-        // preload batches
+        String name = (this.name == null) ? "sequential_" + modelNum : this.name;
+        System.out.println("\033[94m=================== \033[1mTraining: " + name + 
+            "\033[0;94m ==================\033[0m");
+
+        // Prepare validation data
+        JMatrix valData = null;
+        int[] valLabels = null;
+        boolean useValSet = false;
+
+        if (loader.imageBreakdown().get("val") > 0) {
+            valData = loader.getValImages();
+            valLabels = loader.getValLabels();
+            useValSet = true;
+        }
+        
+
+
         int numBatches = loader.numBatches();
         int batchSize = loader.getBatch(0).size();
 
@@ -200,16 +233,8 @@ public class Sequential{
 
                 JMatrix output = layers.getLast().getOutput();
 
-                int[] predictions;
+                int[] predictions = getPredictions(output);
 
-                if (layers.getLast() instanceof Sigmoid) {
-                    predictions = new int[batchSize];
-                    for (int i = 0; i < batchSize; i++) {
-                        predictions[i] = (output.get(i) >= 0.5) ? 1 : 0;
-                    }
-                } else {
-                    predictions = argmax0(output);
-                }
                 accuracy += Metrics.getAccuracy(predictions, yBatch);
 
                 totalLoss += crossEntropyLoss(output, yBatch);
@@ -230,31 +255,69 @@ public class Sequential{
                     }
                 }
             }
-            System.out.println("\n      Accuracy: " + (accuracy / loader.numBatches()));
+            // Convert to percentage
+            double rawTrainAccuracy = accuracy / loader.numBatches();
+            String trainAccuracy = String.valueOf(
+                100 * rawTrainAccuracy);
+                // Avoid indexOutOfBoundsException
+            while (trainAccuracy.length() < 5) {
+                trainAccuracy += "0";
+            }
+            trainAccuracy = trainAccuracy.substring(0, 5) + "%";
+            String accuracyReport = TEAL + "    Training Accuracy: " + RESET;
+            // Warn if performance declines
+            if (rawTrainAccuracy > prevTrainAccuracy) {
+                accuracyReport += GREEN;
+            } else {
+                accuracyReport += RED;
+            }
+            prevTrainAccuracy = rawTrainAccuracy;
+
+            accuracyReport += trainAccuracy + RESET;
+
+            if (useValSet) {
+                accuracyReport += TEAL + "\n    Validation Accuracy: " + RESET;
+                // Test on the val set
+                int[] valPredictions = predict(valData);
+                double rawValAccuracy = Metrics.getAccuracy(valPredictions, valLabels);
+                // Convert to percentage
+                String valAccuracy = String.valueOf(
+                    100 * rawValAccuracy);
+                // Avoid indexOutOfBoundsException
+                while (valAccuracy.length() < 5) {
+                    valAccuracy += "0";
+                }
+                if (rawValAccuracy > prevValAccuracy) {
+                    accuracyReport += GREEN;
+                } else {
+                    accuracyReport += RED;
+                }
+                prevValAccuracy = rawValAccuracy;
+                valAccuracy = valAccuracy.substring(0, 5) + "%";
+
+                accuracyReport += valAccuracy + RESET;
+            }
+            System.out.println("\n" + accuracyReport + "\n");
         }
     }
 
     /**
-     * Predict class labels on 2D flattened images
-     * @param images                Images in the shape (N, flattenedSize).
-     * @return                      Predicted class labels from softmax.
+     * Predict class labels on batched image data in a JMatrix.
+     * @param images                    a JMatrix of images in the shape (N, channels, height, width).
+     * @return                      predicted class labels in the range [0, numClasses].
      */
-    public int[] predict(float[][] images) {
-        int height = images.length;
-        int width = images[0].length;
-        float[] flattened = new float[height * width];
-
-        for (int row = 0; row < height; row++) {
-            for (int col = 0; col < width; col++) {
-                flattened[row * width + col] = images[row][col];
-            }
-        }
-
+    public int[] predict(JMatrix images) {
         // Forward pass
-        JMatrix output = forward(new JMatrix(flattened, height, width, 1, 1), false);
+        JMatrix output = forward(images, false);
 
         // Get predictions
-        int batchSize = height;
+        return getPredictions(output);
+        
+    }
+
+    // Internal helper to convert output to predictions
+    private int[] getPredictions(JMatrix output) {
+        int batchSize = output.channels();
         if (layers.getLast() instanceof Sigmoid) {
             int[] predictions = new int[batchSize];
             for (int i = 0; i < batchSize; i++) {
@@ -263,48 +326,6 @@ public class Sequential{
             return predictions;
         }
         return argmax0(output);
-    }
-    /**
-     * Predict class labels on 4D images.
-     * @param images                Images in the shape (N, channels, height, width).
-     * @return                      Predicted class labels from softmax.
-     */
-    public int[] predict(float[][][][] images) {
-        int batchSize = images.length;
-        int channels = images[0].length;
-        int imageHeight = images[0][0].length;
-        int imageWidth = images[0][0][0].length;
-        float[] flattened = new float[batchSize * channels * imageHeight * imageWidth];
-    
-        // Flatten the input images
-        for (int i = 0; i < batchSize; i++) {
-            int startIdx = i * channels * imageHeight * imageWidth;
-            for (int c = 0; c < channels; c++) {
-                for (int h = 0; h < imageHeight; h++) {
-                    for (int w = 0; w < imageWidth; w++) {
-                        int flatIndex = startIdx + (c * imageHeight * imageWidth) + (h * imageWidth) + w;
-                        try {
-                            flattened[flatIndex] = images[i][c][h][w];
-                        } catch (ArrayIndexOutOfBoundsException e) {
-                        }
-                    }
-                }
-            }
-        }
-    
-        // Forward pass
-        JMatrix output = forward(new JMatrix(flattened, batchSize, channels, imageHeight, imageWidth), false);
-
-    
-        // Get predictions
-        if (layers.getLast() instanceof Sigmoid) {
-            int[] predictions = new int[batchSize];
-            for (int i = 0; i < batchSize; i++) {
-                predictions[i] = (output.get(i) >= 0.5) ? 1 : 0;
-            }
-            return predictions;
-        }
-        return argmax0(layers.getLast().getOutput());
     }
 
     /**
