@@ -43,7 +43,7 @@ public class NN extends Builder{
         
 
         // Build the model
-        Sequential model = new Sequential("simple_neural_network")
+        Sequential model = new Sequential("MNIST_neural_network")
             .add(Dense(128, InputShape(FLAT_IMAGE_SIZE)))
             .add(Mish())
 

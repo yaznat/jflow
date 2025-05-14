@@ -69,7 +69,7 @@ public class CNN extends Builder{
 
 
         // Build the model
-        Sequential model = new Sequential("small_CNN");
+        Sequential model = new Sequential("Cifar10_CNN");
 
         model.setInputShape(InputShape(COLOR_CHANNELS, IMAGE_SIZE, IMAGE_SIZE)); 
 
