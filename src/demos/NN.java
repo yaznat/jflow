@@ -1,5 +1,7 @@
+package demos;
 import jflow.data.*;
 import jflow.model.*;
+import jflow.utils.JPlot;
 import jflow.utils.Metrics;
 
 /**
@@ -8,6 +10,15 @@ import jflow.utils.Metrics;
  */
 public class NN extends Builder{
     public static void main(String[] args) {
+        // training constants
+        final int BATCH_SIZE = 64;
+        final double VAL_PERCENT = 0.05;
+        final double TEST_PERCENT = 0.05;
+        
+        // MNIST constants
+        final int NUM_CLASSES = 10;
+        final int FLAT_IMAGE_SIZE = 784;
+
         // Initialize the dataloader
         Dataloader loader = new Dataloader();
 
@@ -22,12 +33,14 @@ public class NN extends Builder{
 
         // Prepare data for training
         loader.setSeed(42);
-        loader.valTestSplit(0.05, 0.05);
-        loader.batch(64); 
+        loader.valTestSplit(VAL_PERCENT, TEST_PERCENT);
+        loader.batch(BATCH_SIZE); 
 
-        // MNIST constants
-        final int NUM_CLASSES = 10;
-        final int FLAT_IMAGE_SIZE = 784;
+        // Visualize a random training image
+        JPlot.displayImage(loader.getBatches()
+            .get(0).get((int)(Math.random() * BATCH_SIZE)), 20);
+
+        
 
         // Build the model
         Sequential model = new Sequential("simple_neural_network")
@@ -53,15 +66,8 @@ public class NN extends Builder{
         // model.compile(RMSprop(0.001, 0.9, 1e-8, 0.9));
         model.compile(Adam(0.01));
 
-
-        double oldAccuracy = Metrics.getAccuracy(
-            model.predict(
-                loader.getTestImages()), 
-            loader.getTestLabels());
-
-
         // Train the model
-        model.train(loader, 10); // Prints detailed progress callback
+        model.train(loader, 10, ModelCheckpoint("val_loss", "saved_weights/MNIST NN"));
 
         // Evaluate the model
         int[] predictions = model.predict(loader.getTestImages());
@@ -71,8 +77,5 @@ public class NN extends Builder{
         double newAccuracy = Metrics.getAccuracy(predictions, loader.getTestLabels());
         System.out.println("Test accuracy:" + newAccuracy);
 
-        if (newAccuracy > oldAccuracy) {
-            model.saveWeights("saved_weights/MNIST NN");
-        }
     }
 }

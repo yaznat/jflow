@@ -5,6 +5,8 @@ import java.util.function.Function;
 public class Transform {
     // Store transforms
     private ArrayList<Function<float[][][], float[][][]>> transforms;
+    // Keep track of image bounds for clipping
+    private int[] normBounds = new int[2];
     /**
      * Initializes an empty Transform.
      */
@@ -16,11 +18,17 @@ public class Transform {
         return transforms;
     }
 
+    // Provide information about 
+    protected int[] normBounds() {
+        return normBounds;
+    }
+
     /**
      * Normalize image data to [0,1].
      */
     public Transform normalizeSigmoid() {
-
+        normBounds[0] = 0;
+        normBounds[1] = 1;
         transforms.add(
             image -> {
                 return DataUtility.multiply(image, 1.0 / 255);
@@ -34,7 +42,8 @@ public class Transform {
      * Normalize image data to [-1,1].
      */
     public Transform normalizeTanh() {
-
+        normBounds[0] = -1;
+        normBounds[1] = 1;
         transforms.add(
             image -> {
                 return DataUtility.add(DataUtility.multiply(image, 1 / 127.5), -1);
@@ -70,9 +79,9 @@ public class Transform {
     }
 
     /**
-     * Invert grayscale values (black -> white...)
+     * Invert RGB values (0 -> 255...)
      */
-    public Transform grayscaleInvert() {
+    public Transform invert() {
         transforms.add(
             image -> {
                 int channels = image.length;
@@ -99,6 +108,7 @@ public class Transform {
      * Rotate images by either 90, 180, or 270 degrees.
      */
     public Transform randomRotation() {
+        System.out.println(normBounds[0]);
         transforms.add(
             image -> {
                 int channels = image.length;
@@ -146,11 +156,11 @@ public class Transform {
     public Transform randomBrightness() {
         transforms.add(
             image -> {
-                float low = DataUtility.min(image);
-                float high = DataUtility.max(image);
                 // Random value from -0.2 to 0.2
                 double brightness = Math.random() / 2.5 - 0.2;
-                return DataUtility.clip(DataUtility.add(image, brightness), low, high);
+                return DataUtility.clip(
+                    DataUtility.add(image, brightness), 
+                    normBounds[0], normBounds[1]);
             }
         );
         return this;

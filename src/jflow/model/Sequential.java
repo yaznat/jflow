@@ -35,11 +35,12 @@ public class Sequential{
 
     private final String TEAL = "\033[38;2;0;153;153;1m";
     private final String YELLOW = "\033[38;2;222;197;15m";
-    private final String ORANGE = "\033[1;38;2;255;165;1m";
-    private final String BLUE = "\033[1;94m";
-    private final String WHITE = "\033[0;37m";
-    private final String GREEN = "\033[1;38;2;0;204;0m";
-    private final String RED = "\033[1;38;2;255;0;0m";
+    private final String ORANGE = "\033[38;2;255;165;1m";
+    private final String BLUE = "\033[94m";
+    private final String WHITE = "\033[37m";
+    private final String GREEN = "\033[38;2;0;204;0m";
+    private final String RED = "\033[38;2;255;0;0m";
+    private final String BOLD = "\033[1m";
     private final String RESET = "\033[0m";
 
     /**
@@ -96,7 +97,7 @@ public class Sequential{
 
     /**
      * Prepare the model for training.
-     * @param Optimizer The desired optimizer.
+     * @param optimizer The desired optimizer.
      */
     public void compile(Optimizer optimizer) {
         setOptimizer(optimizer);
@@ -154,7 +155,18 @@ public class Sequential{
      * @param epochs                The number of epochs to train.
      */
     public void train(Dataloader loader, int epochs) {
-        runTraining(loader, epochs, null, null);
+        runTraining(loader, epochs, null);
+    }
+
+    /**
+     * Train the model.
+     * @param loader                A Dataloader containing train images.
+     * @param epochs                The number of epochs to train.
+     * @param savePath              The path for saving checkpoints. Either:
+     *                              <ul> <li> saves every epoch that validation   
+     */
+    public void train(Dataloader loader, int epochs, ModelCheckpoint checkpoint) {
+        runTraining(loader, epochs, checkpoint);
     }
 
     // /**
@@ -168,14 +180,22 @@ public class Sequential{
     // }
 
     private void runTraining(Dataloader loader, int epochs,
-        Function<Integer,Double> scheduler, String savePath) {
-        // Ensure there is an optimizer (currently necessary)
+        ModelCheckpoint checkpoint) {
+        // Ensure there is an optimizer
         if (optimizer == null) {
-            setOptimizer(new Adam(0.001));
+            setOptimizer(new SGD(0.01)); // Simplest possible optimizer
         }
-        // Store previous epoch values to warn against decline
+        // Store values for metric tracking
         double prevTrainAccuracy = 0;
+        double bestTrainAccuracy = 0;
+
+        double bestTrainLoss = Double.POSITIVE_INFINITY;
+
         double prevValAccuracy = 0;
+        double bestValAccuracy = 0;
+
+        double prevValLoss = Double.POSITIVE_INFINITY;
+        double bestValLoss = Double.POSITIVE_INFINITY;
 
         // Visually separate training to reduce terminal clutter
         System.out.println("");
@@ -194,8 +214,6 @@ public class Sequential{
             useValSet = true;
         }
         
-
-
         int numBatches = loader.numBatches();
         int batchSize = loader.getBatch(0).size();
 
@@ -246,59 +264,149 @@ public class Sequential{
                 lossReport.put("Loss", totalLoss / (batch + 1));
 
                 if (!debugMode) {
-                    if (scheduler == null) {
-                        Metrics.printTrainingCallback(epoch, epochs, batch + 1, numBatches,
-                            timeSinceStart, lossReport);
-                    } else {
-                        Metrics.printTrainingCallback(epoch, epochs, batch + 1, numBatches,
-                            timeSinceStart, lossReport, scheduler.apply(epoch));
-                    }
+                    Metrics.printTrainingCallback(epoch, epochs, batch + 1, numBatches,
+                        timeSinceStart, lossReport);
                 }
             }
+            Double trainLoss = totalLoss / numBatches;
+
+            // Report train accuracy
+            String report = BLUE + "    Training Accuracy: " + RESET;
             // Convert to percentage
-            double rawTrainAccuracy = accuracy / loader.numBatches();
-            String trainAccuracy = String.valueOf(
-                100 * rawTrainAccuracy);
-                // Avoid indexOutOfBoundsException
-            while (trainAccuracy.length() < 5) {
-                trainAccuracy += "0";
-            }
-            trainAccuracy = trainAccuracy.substring(0, 5) + "%";
-            String accuracyReport = TEAL + "    Training Accuracy: " + RESET;
-            // Warn if performance declines
-            if (rawTrainAccuracy > prevTrainAccuracy) {
-                accuracyReport += GREEN;
+            double trainAccuracy = accuracy / loader.numBatches();
+            String trainPercentage = accuracyToPercentage(trainAccuracy);
+
+            // Warn if performance declines with RED
+            if (trainAccuracy > prevTrainAccuracy) {
+                report += GREEN;
             } else {
-                accuracyReport += RED;
+                report += RED;
             }
-            prevTrainAccuracy = rawTrainAccuracy;
+            prevTrainAccuracy = trainAccuracy;
 
-            accuracyReport += trainAccuracy + RESET;
+            report += trainPercentage + RESET;
 
+            double valLoss = Double.POSITIVE_INFINITY;
+            double valAccuracy = 0;
             if (useValSet) {
-                accuracyReport += TEAL + "\n    Validation Accuracy: " + RESET;
+                // Report validation accuracy
+                report += BLUE + "\n    Validation Accuracy: " + RESET;
                 // Test on the val set
                 int[] valPredictions = predict(valData);
-                double rawValAccuracy = Metrics.getAccuracy(valPredictions, valLabels);
-                // Convert to percentage
-                String valAccuracy = String.valueOf(
-                    100 * rawValAccuracy);
-                // Avoid indexOutOfBoundsException
-                while (valAccuracy.length() < 5) {
-                    valAccuracy += "0";
-                }
-                if (rawValAccuracy > prevValAccuracy) {
-                    accuracyReport += GREEN;
-                } else {
-                    accuracyReport += RED;
-                }
-                prevValAccuracy = rawValAccuracy;
-                valAccuracy = valAccuracy.substring(0, 5) + "%";
+                valAccuracy = Metrics.getAccuracy(valPredictions, valLabels);
+                String valPercentage = accuracyToPercentage(valAccuracy);
 
-                accuracyReport += valAccuracy + RESET;
+                // Warn if performance declines with RED
+                if (valAccuracy > prevValAccuracy) {
+                    report += GREEN;
+                } else {
+                    report += RED;
+                }
+                prevValAccuracy = valAccuracy;
+
+                report += valPercentage + RESET;
+
+                // Report validation loss
+                report += BLUE + "\n    Validation Loss: ";
+                valLoss = crossEntropyLoss(layers.getLast().getOutput(), valLabels);
+
+                // Warn if performance declines with RED
+                if (valLoss < prevValLoss) {
+                    report += GREEN;
+                } else {
+                    report += RED;
+                }
+                prevValLoss = valLoss;
+
+                report += capDouble(valLoss, 8) + RESET;
             }
-            System.out.println("\n" + accuracyReport + "\n");
+            System.out.println("\n" + report);
+            if (checkpoint == null) {
+                System.out.println("");
+            } else {
+                String reportName = null;
+                String val1 = null;
+                String val2 = null;
+                boolean improved = false;
+                // check the given metric
+                switch (checkpoint.getMetric()) {
+                    case "val_loss":
+                        reportName = "Validation loss";
+                        val1 = capDouble(bestValLoss, 8);
+                        val2 = capDouble(valLoss, 8);
+                        if (valLoss < bestValLoss) {
+                            improved = true;
+                            bestValLoss = valLoss;
+                        } else {
+                            improved = false;
+                        }
+                        break;
+                    case "val_accuracy":
+                        reportName = "Validation accuracy";
+                        val1 = capDouble(bestValAccuracy, 8);
+                        val2 = capDouble(valAccuracy, 8);
+                        if (valAccuracy > bestValAccuracy) {
+                            improved = true;
+                            bestValAccuracy = valAccuracy;
+                        } else {
+                            improved = false;
+                        }
+                        break;
+                    case "train_loss":
+                        reportName = "Train loss";
+                        val1 = capDouble(bestTrainLoss, 8);
+                        val2 = capDouble(trainLoss, 8);
+                        if (trainLoss < bestTrainLoss) {
+                            improved = true;
+                            bestTrainLoss = trainLoss;
+                        } else {
+                            improved = false;
+                        }
+                        break;
+                    case "train_accuracy":
+                        reportName = "Train accuracy";
+                        val1 = capDouble(bestTrainAccuracy, 8);
+                        val2 = capDouble(trainAccuracy, 8);
+                        if (trainAccuracy > bestTrainAccuracy) {
+                            improved = true;
+                            bestTrainAccuracy = trainAccuracy;
+                        } else {
+                            improved = false;
+                        }
+                        break;
+                }
+                if (improved) {
+                    System.out.println(
+                        WHITE + reportName + " improved from "
+                        + BLUE + val1 + 
+                        WHITE + " to " + BLUE + val2 +
+                        WHITE + ". Saving model to " + BLUE + 
+                        checkpoint.getSavePath() + RESET + "\n"
+                    );
+                    internalSaveWeights(checkpoint.getSavePath(), false);
+                } else {
+                    System.out.println(
+                        WHITE + reportName + " did not improve from "
+                        + BLUE + val1 + RESET + "\n"
+                    );
+                }
+            }
         }
+    }
+
+    // Converts accuracy to percentage
+    private String accuracyToPercentage(double accuracy) {
+        // Cap to 4 significant figures
+        return capDouble(accuracy * 100, 5) + "%";
+    }
+    // Convert a double to a String with given length
+    private String capDouble(double number, int length) {
+        String numAsString = String.valueOf(number);
+        // Avoid StingIndexOutOfBoundsException
+        while (numAsString.length() < length) {
+            numAsString += "0";
+        }
+        return numAsString.substring(0, length);
     }
 
     /**
@@ -463,6 +571,9 @@ public class Sequential{
      * @param path               The name of the directory to store files in.
      */
     public void saveWeights(String path) {
+        internalSaveWeights(path, true);
+    }
+    private void internalSaveWeights(String path, boolean printReport) {
         for (jflow.layers.internal.Layer l : layers) {
             // Check if the layer needs saving
             if (l instanceof TrainableLayer) {
@@ -492,10 +603,11 @@ public class Sequential{
                         e.printStackTrace();
                     }
                 }
-
             }
         }
-        System.out.println("Weights saved to " + path);
+        if (printReport) {
+            System.out.println("Weights saved to " + path);
+        }
     }
     /**
      * Load weights from .txt files in a directory.

@@ -272,4 +272,15 @@ public class Builder {
     public static Optimizer AdaGrad(double learningRate, double epsilon) {
         return new AdaGrad(learningRate, epsilon);
     }
+
+    /**
+     * Passes data to the train function to faciliate the saving of model checkpoints.
+     * @param metric                            the metric to track for improvement. Supported: 
+     *                                            <ul> <li> val_accuracy <li> val_loss 
+     *                                                 <li> train_accuracy <li> train_loss </ul>
+     * @param savePath                          the path to save checkpoints to.
+     */
+    public static ModelCheckpoint ModelCheckpoint(String metric, String savePath) {
+        return new ModelCheckpoint(metric, savePath);
+    }
 }

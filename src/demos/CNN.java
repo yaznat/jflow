@@ -1,6 +1,8 @@
+package demos;
 import jflow.data.*;
 import jflow.model.Builder;
 import jflow.model.Sequential;
+import jflow.utils.JPlot;
 import jflow.utils.Metrics;
 
 /**
@@ -20,6 +22,14 @@ public class CNN extends Builder{
     }
 
     public static void main(String[] args) {
+        // training constants
+        final int BATCH_SIZE = 64;
+        final double VAL_PERCENT = 0.02;
+        final double TEST_PERCENT = 0.02;
+        
+        // Cifar10 constants
+        final int COLOR_CHANNELS = 3; // RGB images
+        final int IMAGE_SIZE = 32;
         // Load data
         Dataloader loader = new Dataloader();
     // Use if necessary
@@ -43,19 +53,19 @@ public class CNN extends Builder{
 
         // Prepare data for training
         loader.setSeed(42);
-        loader.valTestSplit(0.01, 0.01);
-        loader.batch(64);
+        loader.valTestSplit(VAL_PERCENT, TEST_PERCENT);
+        loader.batch(BATCH_SIZE);
+
+        // Visualize a random training image
+        JPlot.displayImage(loader.getBatches()
+            .get(0).get((int)(Math.random() * BATCH_SIZE)), 20);
 
         // Add simple augmentations to train images
         Transform augmentations = new Transform()
-            .randomFlip()
-            .randomBrightness();
+            .randomFlip();
+            // .randomBrightness();
 
         loader.applyAugmentations(augmentations);
-
-        // CIFAR-10 constants
-        final int COLOR_CHANNELS = 3; // RGB images
-        final int IMAGE_SIZE = 32;
 
 
         // Build the model
@@ -95,11 +105,9 @@ public class CNN extends Builder{
         // model.compile(RMSprop(0.001, 0.9, 1e-8, 0.9));
         model.compile(Adam(0.001));
 
-        
-        double oldAccuracy = Metrics.getAccuracy(model.predict(loader.getTestImages()), loader.getTestLabels());
-        
         // Train the model
-        model.train(loader, 30);
+        model.train(loader, 30, ModelCheckpoint(
+            "val_loss", "saved_weights/Cifar10 CNN Cars vs Trucks"));
 
         // Evaluate the model
         int[] predictions = model.predict(loader.getTestImages());
@@ -108,9 +116,5 @@ public class CNN extends Builder{
 
         double newAccuracy = Metrics.getAccuracy(predictions, loader.getTestLabels());
         System.out.println("Test accuracy:" + newAccuracy);
-
-        if (newAccuracy > oldAccuracy) {
-            model.saveWeights("saved_weights/Cifar10 CNN Cars vs Trucks");
-        }
     }
 }
