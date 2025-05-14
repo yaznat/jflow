@@ -2,6 +2,8 @@
 
 **JFlow** is a memory-efficient deep learning library designed in Java for both educational purposes and real-world machine learning applications. It provides low-level control over model training and supports limited hardware.  
 
+![Alt text](readme-images/Callback-Example.png)  
+
 ### Strengths  
 
 #### Memory Optimization  
@@ -49,4 +51,3 @@
 - Plot images and confusion matrices.  
 - JMatrix data type for low-level matrix operations.  
 
-![Alt text](readme-images/Callback-Example.png)
