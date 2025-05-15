@@ -58,12 +58,12 @@ public class Dense extends TrainableLayer {
         // He Initialization
         double scale = Math.sqrt(2.0 / inputSize);
 
-        for (int i = 0; i < outputSize; i++) {
+        IntStream.range(0, outputSize).parallel().forEach(i -> {
             for (int j = 0; j < inputSize; j++) {
                 weights[i * inputSize + j] = (float)((Math.random() - 0.5) * scale);  
             }
             biases[i] = (float)((Math.random() - 0.5) * 0.5);
-        }
+        });
 
         this.weights = new JMatrix(weights, outputSize, inputSize, 1, 1, "weights");
         this.biases = new JMatrix(outputSize, 1, 1, 1, "biases");

@@ -81,9 +81,9 @@ public class Conv2D extends TrainableLayer {
         int filterSizeTotal = numFilters * numChannels * filterSize * filterSize;
         float[] filters = new float[filterSizeTotal];
 
-        for (int i = 0; i < filterSizeTotal; i++) {
+        IntStream.range(0, filterSizeTotal).parallel().forEach(i -> {
             filters[i] = (float)(rand.nextGaussian() * stdDev * filterScale);
-        }
+        });
 
         this.filters = new JMatrix(filters, numFilters, numChannels, filterSize, filterSize, "filters");
 
@@ -117,21 +117,193 @@ public class Conv2D extends TrainableLayer {
         JMatrix A = new JMatrix(numImages, numFilters, outputHeight, outputWidth);
         
         // Calculate forward output
-        IntStream.range(0, numImages).parallel().forEach(j -> {
-            for (int k = 0; k < numFilters; k++) {
-                final int filterIndex = k;
-                final int imageIndex = j;
-                int startIdx = imageIndex * numChannels * inputHeight * inputWidth;
-                int outputIdx = (imageIndex * numFilters + filterIndex) * outputHeight * outputWidth;
-                convolveWithKernel(A.getMatrix(), outputIdx, input.getMatrix(), startIdx, 
-                    filters.getMatrix(), filterIndex, biases.get(filterIndex), padding);
+        if (numImages <= Runtime.getRuntime().availableProcessors() / 2) {
+            // For each image in the batch
+            for (int imageIndex = 0; imageIndex < numImages; imageIndex++) {
+                final int imgIdx = imageIndex;
+                int startIdx = imgIdx * numChannels * inputHeight * inputWidth;
+                
+                // Parallelize across filters
+                IntStream.range(0, numFilters).parallel().forEach(filterIndex -> {
+                    int outputIdx = (imgIdx * numFilters + filterIndex) * outputHeight * outputWidth;
+                    convolveWithKernel(A.getMatrix(), outputIdx, input.getMatrix(), startIdx,
+                            filters.getMatrix(), filterIndex, biases.get(filterIndex), padding);
+                });
             }
-        });
+        } else {
+            // Parallelize across batch for larger batch sizes
+            IntStream.range(0, numImages).parallel().forEach(imageIndex -> {
+                for (int filterIndex = 0; filterIndex < numFilters; filterIndex++) {
+                    int startIdx = imageIndex * numChannels * inputHeight * inputWidth;
+                    int outputIdx = (imageIndex * numFilters + filterIndex) * outputHeight * outputWidth;
+                    convolveWithKernel(A.getMatrix(), outputIdx, input.getMatrix(), startIdx,
+                            filters.getMatrix(), filterIndex, biases.get(filterIndex), padding);
+                }
+            });
+        }
        
         return trackOutput(A);
     }
 
     @Override
+    // public JMatrix backward(JMatrix input) {
+    //     // Calculate output dimensions based on padding and stride
+    //     int outputHeight, outputWidth;
+    //     if (padding.equals("same_padding")) {
+    //         outputHeight = (int)Math.ceil((double)inputHeight / stride);
+    //         outputWidth = (int)Math.ceil((double)inputWidth / stride);
+    //     } else { // valid padding
+    //         outputHeight = (inputHeight - filterSize) / stride + 1;
+    //         outputWidth = (inputWidth - filterSize) / stride + 1;
+    //     }
+    
+    //     // Reset gradients
+    //     dFilters.fill(0);
+    //     dBiases.fill(0);
+        
+    //     // Initialize dX with proper dimensions
+    //     JMatrix dX = new JMatrix(numImages, numChannels, inputHeight, inputWidth);
+        
+    //     // Calculate gradients in batch
+
+    //     // For each filter
+    //     IntStream.range(0, numFilters).parallel().forEach(k -> {
+    //         // Calculate bias gradients
+    //         float biasGrad = 0;
+    //         for (int i = 0; i < numImages; i++) {
+    //             int dZFilterOffset = (i * numFilters + k) * outputHeight * outputWidth;
+    //             for (int oh = 0; oh < outputHeight; oh++) {
+    //                 for (int ow = 0; ow < outputWidth; ow++) {
+    //                     biasGrad += input.get(dZFilterOffset + oh * outputWidth + ow);
+    //                 }
+    //             }
+    //         }
+    //         dBiases.set(k, biasGrad);
+            
+    //         // Calculate filter gradients
+    //         for (int c = 0; c < numChannels; c++) {
+    //             int filterChannelOffset = ((k * numChannels) + c) * filterSize * filterSize;
+                
+    //             for (int fh = 0; fh < filterSize; fh++) {
+    //                 for (int fw = 0; fw < filterSize; fw++) {
+    //                     float filterGrad = 0;
+                        
+    //                     // Accumulate gradients from all images in batch
+    //                     for (int i = 0; i < numImages; i++) {
+    //                         int inputChannelOffset = (i * numChannels + c) * inputHeight * inputWidth;
+    //                         int dZFilterOffset = (i * numFilters + k) * outputHeight * outputWidth;
+                            
+    //                         for (int oh = 0; oh < outputHeight; oh++) {
+    //                             for (int ow = 0; ow < outputWidth; ow++) {
+    //                                 // Map output coordinates to input coordinates
+    //                                 int ih_base, iw_base;
+                                    
+    //                                 if (padding.equals("same_padding")) {
+    //                                     // Calculate padding size
+    //                                     int padTotal_h = Math.max(0, (outputHeight - 1) * stride + filterSize - inputHeight);
+    //                                     int padTotal_w = Math.max(0, (outputWidth - 1) * stride + filterSize - inputWidth);
+    //                                     int padTop = padTotal_h / 2;
+    //                                     int padLeft = padTotal_w / 2;
+                                        
+    //                                     // Adjust for stride and padding
+    //                                     ih_base = oh * stride - padTop;
+    //                                     iw_base = ow * stride - padLeft;
+    //                                 } else { // valid padding
+    //                                     ih_base = oh * stride;
+    //                                     iw_base = ow * stride;
+    //                                 }
+                                    
+    //                                 // The position in input corresponding to this filter position
+    //                                 int ih = ih_base + fh;
+    //                                 int iw = iw_base + fw;
+                                    
+    //                                 if (ih >= 0 && ih < inputHeight && iw >= 0 && iw < inputWidth) {
+    //                                     int inputIdx = inputChannelOffset + (ih * inputWidth + iw);
+    //                                     int dZIdx = dZFilterOffset + (oh * outputWidth + ow);
+    //                                     filterGrad += lastInput.get(inputIdx) * input.get(dZIdx);
+    //                                 }
+    //                             }
+    //                         }
+    //                     }
+                        
+    //                     dFilters.set(filterChannelOffset + (fh * filterSize + fw), filterGrad);
+    //                 }
+    //             }
+    //         }
+    //     });
+        
+    //     // Calculate input gradients (dX)
+    //     IntStream.range(0, numImages).parallel().forEach(i -> {
+    //         for (int c = 0; c < numChannels; c++) {
+    //             int dXChannelOffset = (i * numChannels + c) * inputHeight * inputWidth;
+                
+    //             for (int ih = 0; ih < inputHeight; ih++) {
+    //                 for (int iw = 0; iw < inputWidth; iw++) {
+    //                     float sum = 0;
+                        
+    //                     for (int k = 0; k < numFilters; k++) {
+    //                         int filterChannelBaseOffset = (k * numChannels + c) * filterSize * filterSize;
+    //                         int dZFilterOffset = (i * numFilters + k) * outputHeight * outputWidth;
+                            
+    //                         // For each filter position that includes this input pixel
+    //                         for (int fh = 0; fh < filterSize; fh++) {
+    //                             for (int fw = 0; fw < filterSize; fw++) {
+    //                                 // Rotate filter by 180 degrees
+    //                                 int rotatedFh = filterSize - 1 - fh;
+    //                                 int rotatedFw = filterSize - 1 - fw;
+    //                                 int filterPos = filterChannelBaseOffset + (rotatedFh * filterSize + rotatedFw);
+                                    
+    //                                 // Calculate corresponding output position with padding and stride
+    //                                 int oh, ow;
+                                    
+    //                                 if (padding.equals("same_padding")) {
+    //                                     // Calculate padding size
+    //                                     int padTotal_h = Math.max(0, (outputHeight - 1) * stride + filterSize - inputHeight);
+    //                                     int padTotal_w = Math.max(0, (outputWidth - 1) * stride + filterSize - inputWidth);
+    //                                     int padTop = padTotal_h / 2;
+    //                                     int padLeft = padTotal_w / 2;
+                                        
+    //                                     // Determine which output cell affects this input position
+    //                                     oh = (ih - rotatedFh + padTop) / stride;
+    //                                     ow = (iw - rotatedFw + padLeft) / stride;
+                                        
+    //                                     // Check for stride boundary
+    //                                     if ((ih - rotatedFh + padTop) % stride != 0 || 
+    //                                         (iw - rotatedFw + padLeft) % stride != 0) {
+    //                                         continue;
+    //                                     }
+    //                                 } else { // valid padding
+    //                                     // For valid padding
+    //                                     oh = (ih - rotatedFh) / stride;
+    //                                     ow = (iw - rotatedFw) / stride;
+                                        
+    //                                     // Check for stride boundary
+    //                                     if ((ih - rotatedFh) % stride != 0 || 
+    //                                         (iw - rotatedFw) % stride != 0) {
+    //                                         continue;
+    //                                     }
+    //                                 }
+                                    
+    //                                 if (oh >= 0 && oh < outputHeight && ow >= 0 && ow < outputWidth) {
+    //                                     int dZPos = dZFilterOffset + (oh * outputWidth + ow);
+    //                                     sum += filters.get(filterPos) * input.get(dZPos);
+    //                                 }
+    //                             }
+    //                         }
+    //                     }
+                        
+    //                     int dXPos = dXChannelOffset + (ih * inputWidth + iw);
+    //                     dX.set(dXPos, sum);
+    //                 }
+    //             }
+    //         }
+    //     });
+        
+    //     // Apply adaptive gradient scaling
+    //     adaptiveScale(dFilters, dBiases, dX);
+    
+    //     return trackGradient(dX);
+    // }
     public JMatrix backward(JMatrix input) {
         // Calculate output dimensions based on padding and stride
         int outputHeight, outputWidth;
@@ -151,7 +323,7 @@ public class Conv2D extends TrainableLayer {
         JMatrix dX = new JMatrix(numImages, numChannels, inputHeight, inputWidth);
         
         // Calculate gradients in batch
-
+    
         // For each filter
         IntStream.range(0, numFilters).parallel().forEach(k -> {
             // Calculate bias gradients
@@ -218,23 +390,52 @@ public class Conv2D extends TrainableLayer {
             }
         });
         
-        // Calculate input gradients (dX)
-        IntStream.range(0, numImages).parallel().forEach(i -> {
-            for (int c = 0; c < numChannels; c++) {
+        // Calculate input gradients (dX) with improved parallelization strategy
+        // Parallelize across input channels and spatial blocks
+        final int TILE_SIZE = 32; // Adjust based on typical input sizes
+        int numTilesH = (inputHeight + TILE_SIZE - 1) / TILE_SIZE;
+        int numTilesW = (inputWidth + TILE_SIZE - 1) / TILE_SIZE;
+    
+        // Create parallel tasks for each channel+tile combination
+        IntStream.range(0, numChannels * numTilesH * numTilesW).parallel().forEach(taskIdx -> {
+            int c = taskIdx / (numTilesH * numTilesW);
+            int tileIdx = taskIdx % (numTilesH * numTilesW);
+            int tileH = tileIdx / numTilesW;
+            int tileW = tileIdx % numTilesW;
+            
+            // Calculate tile boundaries
+            int ih_start = tileH * TILE_SIZE;
+            int ih_end = Math.min(ih_start + TILE_SIZE, inputHeight);
+            int iw_start = tileW * TILE_SIZE;
+            int iw_end = Math.min(iw_start + TILE_SIZE, inputWidth);
+            
+            // Calculate padding for position mapping
+            int padTop = 0, padLeft = 0;
+            if (padding.equals("same_padding")) {
+                int padTotal_h = Math.max(0, (outputHeight - 1) * stride + filterSize - inputHeight);
+                int padTotal_w = Math.max(0, (outputWidth - 1) * stride + filterSize - inputWidth);
+                padTop = padTotal_h / 2;
+                padLeft = padTotal_w / 2;
+            }
+            
+            // Process for all images in the batch (sequentially within this parallel task)
+            for (int i = 0; i < numImages; i++) {
                 int dXChannelOffset = (i * numChannels + c) * inputHeight * inputWidth;
                 
-                for (int ih = 0; ih < inputHeight; ih++) {
-                    for (int iw = 0; iw < inputWidth; iw++) {
+                // Compute gradients for this tile
+                for (int ih = ih_start; ih < ih_end; ih++) {
+                    for (int iw = iw_start; iw < iw_end; iw++) {
                         float sum = 0;
                         
+                        // For each filter
                         for (int k = 0; k < numFilters; k++) {
                             int filterChannelBaseOffset = (k * numChannels + c) * filterSize * filterSize;
                             int dZFilterOffset = (i * numFilters + k) * outputHeight * outputWidth;
                             
-                            // For each filter position that includes this input pixel
+                            // For each filter position that affects this input pixel
                             for (int fh = 0; fh < filterSize; fh++) {
                                 for (int fw = 0; fw < filterSize; fw++) {
-                                    // Rotate filter by 180 degrees
+                                    // Rotate filter by 180 degrees for the transposed convolution
                                     int rotatedFh = filterSize - 1 - fh;
                                     int rotatedFw = filterSize - 1 - fw;
                                     int filterPos = filterChannelBaseOffset + (rotatedFh * filterSize + rotatedFw);
@@ -243,12 +444,6 @@ public class Conv2D extends TrainableLayer {
                                     int oh, ow;
                                     
                                     if (padding.equals("same_padding")) {
-                                        // Calculate padding size
-                                        int padTotal_h = Math.max(0, (outputHeight - 1) * stride + filterSize - inputHeight);
-                                        int padTotal_w = Math.max(0, (outputWidth - 1) * stride + filterSize - inputWidth);
-                                        int padTop = padTotal_h / 2;
-                                        int padLeft = padTotal_w / 2;
-                                        
                                         // Determine which output cell affects this input position
                                         oh = (ih - rotatedFh + padTop) / stride;
                                         ow = (iw - rotatedFw + padLeft) / stride;
@@ -281,6 +476,327 @@ public class Conv2D extends TrainableLayer {
                         int dXPos = dXChannelOffset + (ih * inputWidth + iw);
                         dX.set(dXPos, sum);
                     }
+                }
+            }
+        });
+        
+        // Apply adaptive gradient scaling
+        adaptiveScale(dFilters, dBiases, dX);
+    
+        return trackGradient(dX);
+    }
+    
+    // Alternative implementation that reuses filter gradients computation for efficiency
+    public JMatrix backwardAlt(JMatrix input) {
+        // Calculate output dimensions based on padding and stride
+        int outputHeight, outputWidth;
+        if (padding.equals("same_padding")) {
+            outputHeight = (int)Math.ceil((double)inputHeight / stride);
+            outputWidth = (int)Math.ceil((double)inputWidth / stride);
+        } else { // valid padding
+            outputHeight = (inputHeight - filterSize) / stride + 1;
+            outputWidth = (inputWidth - filterSize) / stride + 1;
+        }
+    
+        // Reset gradients
+        dFilters.fill(0);
+        dBiases.fill(0);
+        
+        // Initialize dX with proper dimensions
+        JMatrix dX = new JMatrix(numImages, numChannels, inputHeight, inputWidth);
+        dX.fill(0); // Ensure all values are initialized to zero
+        
+        // Precompute padding values for reuse
+        int padTop, padLeft;
+        if (padding.equals("same_padding")) {
+            int padTotal_h = Math.max(0, (outputHeight - 1) * stride + filterSize - inputHeight);
+            int padTotal_w = Math.max(0, (outputWidth - 1) * stride + filterSize - inputWidth);
+            padTop = padTotal_h / 2;
+            padLeft = padTotal_w / 2;
+        } else {
+            padTop = 0;
+            padLeft = 0;
+        }
+
+        
+        // Combined computation for filters, biases, and input gradients
+        // Parallelize across output feature map positions
+        IntStream.range(0, numFilters * outputHeight * outputWidth).parallel().forEach(taskIdx -> {
+            int k = taskIdx / (outputHeight * outputWidth);
+            int posIdx = taskIdx % (outputHeight * outputWidth);
+            int oh = posIdx / outputWidth;
+            int ow = posIdx % outputWidth;
+            
+            // Accumulate bias gradients atomically
+            float biasGradForPos = 0;
+            
+            // For each image in batch
+            for (int i = 0; i < numImages; i++) {
+                int dZFilterOffset = (i * numFilters + k) * outputHeight * outputWidth;
+                int dZPos = dZFilterOffset + (oh * outputWidth + ow);
+                float dZ_val = input.get(dZPos);
+                
+                // Add to bias gradient
+                biasGradForPos += dZ_val;
+                
+                // Calculate filter gradients and input gradients simultaneously
+                for (int c = 0; c < numChannels; c++) {
+                    int filterChannelOffset = ((k * numChannels) + c) * filterSize * filterSize;
+                    
+                    // Compute position in input accounting for padding and stride
+                    int ih_base, iw_base;
+                    if (padding.equals("same_padding")) {
+                        ih_base = oh * stride - padTop;
+                        iw_base = ow * stride - padLeft;
+                    } else { // valid padding
+                        ih_base = oh * stride;
+                        iw_base = ow * stride;
+                    }
+                    
+                    // For each position in the filter
+                    for (int fh = 0; fh < filterSize; fh++) {
+                        for (int fw = 0; fw < filterSize; fw++) {
+                            int ih = ih_base + fh;
+                            int iw = iw_base + fw;
+                            
+                            if (ih >= 0 && ih < inputHeight && iw >= 0 && iw < inputWidth) {
+                                int inputChannelOffset = (i * numChannels + c) * inputHeight * inputWidth;
+                                int inputIdx = inputChannelOffset + (ih * inputWidth + iw);
+                                
+                                // Update filter gradient (thread-safe due to taskIdx partitioning)
+                                float lastInputVal = lastInput.get(inputIdx);
+                                synchronized(dFilters) {
+                                    int filterIdx = filterChannelOffset + (fh * filterSize + fw);
+                                    dFilters.set(filterIdx, dFilters.get(filterIdx) + lastInputVal * dZ_val);
+                                }
+                                
+                                // Update input gradient for backpropagation
+                                // Need to rotate filter by 180 degrees
+                                int rotatedFh = filterSize - 1 - fh;
+                                int rotatedFw = filterSize - 1 - fw;
+                                int filterPos = filterChannelOffset + (rotatedFh * filterSize + rotatedFw);
+                                
+                                synchronized(dX) {
+                                    dX.set(inputIdx, dX.get(inputIdx) + filters.get(filterPos) * dZ_val);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Atomically update bias gradient
+            synchronized(dBiases) {
+                dBiases.set(k, dBiases.get(k) + biasGradForPos);
+            }
+        });
+        
+        // Apply adaptive gradient scaling
+        adaptiveScale(dFilters, dBiases, dX);
+    
+        return trackGradient(dX);
+    }
+    
+    // Highly optimized backward implementation using spatial partitioning
+    public JMatrix backwardOptimized(JMatrix input) {
+        // Calculate output dimensions based on padding and stride
+        int outputHeight, outputWidth;
+        if (padding.equals("same_padding")) {
+            outputHeight = (int)Math.ceil((double)inputHeight / stride);
+            outputWidth = (int)Math.ceil((double)inputWidth / stride);
+        } else { // valid padding
+            outputHeight = (inputHeight - filterSize) / stride + 1;
+            outputWidth = (inputWidth - filterSize) / stride + 1;
+        }
+    
+        // Reset gradients
+        dFilters.fill(0);
+        dBiases.fill(0);
+        
+        // Calculate bias gradients in parallel across filters
+        IntStream.range(0, numFilters).parallel().forEach(k -> {
+            float biasGrad = 0;
+            for (int i = 0; i < numImages; i++) {
+                int dZFilterOffset = (i * numFilters + k) * outputHeight * outputWidth;
+                for (int oh = 0; oh < outputHeight; oh++) {
+                    for (int ow = 0; ow < outputWidth; ow++) {
+                        biasGrad += input.get(dZFilterOffset + oh * outputWidth + ow);
+                    }
+                }
+            }
+            dBiases.set(k, biasGrad);
+        });
+        
+        // Calculate filter gradients with spatial parallelism
+        final int BLOCK_SIZE = Math.min(8, filterSize); // Adjust based on filter size
+        IntStream.range(0, numFilters * numChannels * (filterSize/BLOCK_SIZE + 1) * (filterSize/BLOCK_SIZE + 1))
+                 .parallel()
+                 .forEach(blockIdx -> {
+            int k = blockIdx / (numChannels * (filterSize/BLOCK_SIZE + 1) * (filterSize/BLOCK_SIZE + 1));
+            int remaining = blockIdx % (numChannels * (filterSize/BLOCK_SIZE + 1) * (filterSize/BLOCK_SIZE + 1));
+            int c = remaining / ((filterSize/BLOCK_SIZE + 1) * (filterSize/BLOCK_SIZE + 1));
+            remaining = remaining % ((filterSize/BLOCK_SIZE + 1) * (filterSize/BLOCK_SIZE + 1));
+            int blockH = remaining / (filterSize/BLOCK_SIZE + 1);
+            int blockW = remaining % (filterSize/BLOCK_SIZE + 1);
+            
+            int fhStart = blockH * BLOCK_SIZE;
+            int fhEnd = Math.min(fhStart + BLOCK_SIZE, filterSize);
+            int fwStart = blockW * BLOCK_SIZE;
+            int fwEnd = Math.min(fwStart + BLOCK_SIZE, filterSize);
+            
+            if (fhStart >= filterSize || fwStart >= filterSize) return;
+            
+            // Calculate filter gradients for this block
+            int filterChannelOffset = ((k * numChannels) + c) * filterSize * filterSize;
+            
+            for (int fh = fhStart; fh < fhEnd; fh++) {
+                for (int fw = fwStart; fw < fwEnd; fw++) {
+                    float filterGrad = 0;
+                    
+                    // Accumulate gradients from all images in batch
+                    for (int i = 0; i < numImages; i++) {
+                        int inputChannelOffset = (i * numChannels + c) * inputHeight * inputWidth;
+                        int dZFilterOffset = (i * numFilters + k) * outputHeight * outputWidth;
+                        
+                        // Precompute padding
+                        int padTop = 0, padLeft = 0;
+                        if (padding.equals("same_padding")) {
+                            int padTotal_h = Math.max(0, (outputHeight - 1) * stride + filterSize - inputHeight);
+                            int padTotal_w = Math.max(0, (outputWidth - 1) * stride + filterSize - inputWidth);
+                            padTop = padTotal_h / 2;
+                            padLeft = padTotal_w / 2;
+                        }
+                        
+                        for (int oh = 0; oh < outputHeight; oh++) {
+                            for (int ow = 0; ow < outputWidth; ow++) {
+                                // Map output coordinates to input coordinates
+                                int ih_base, iw_base;
+                                
+                                if (padding.equals("same_padding")) {
+                                    // Adjust for stride and padding
+                                    ih_base = oh * stride - padTop;
+                                    iw_base = ow * stride - padLeft;
+                                } else { // valid padding
+                                    ih_base = oh * stride;
+                                    iw_base = ow * stride;
+                                }
+                                
+                                // The position in input corresponding to this filter position
+                                int ih = ih_base + fh;
+                                int iw = iw_base + fw;
+                                
+                                if (ih >= 0 && ih < inputHeight && iw >= 0 && iw < inputWidth) {
+                                    int inputIdx = inputChannelOffset + (ih * inputWidth + iw);
+                                    int dZIdx = dZFilterOffset + (oh * outputWidth + ow);
+                                    filterGrad += lastInput.get(inputIdx) * input.get(dZIdx);
+                                }
+                            }
+                        }
+                    }
+                    
+                    dFilters.set(filterChannelOffset + (fh * filterSize + fw), filterGrad);
+                }
+            }
+        });
+        
+        // Initialize dX with proper dimensions
+        JMatrix dX = new JMatrix(numImages, numChannels, inputHeight, inputWidth);
+        
+        // Calculate input gradients (dX) with improved spatial partitioning
+        // Choose partition strategy based on input size and device characteristics
+        final int INPUT_BLOCK_SIZE = 16; // Adjust based on common input sizes
+        
+        // Create blocks for spatial parallelism
+        IntStream.range(0, numImages * numChannels * 
+                      ((inputHeight + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE) * 
+                      ((inputWidth + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE))
+                 .parallel()
+                 .forEach(blockIdx -> {
+            // Decode block index to get image, channel, and spatial block
+            int idx = blockIdx;
+            int i = idx / (numChannels * ((inputHeight + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE) * 
+                         ((inputWidth + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE));
+            idx %= (numChannels * ((inputHeight + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE) * 
+                  ((inputWidth + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE));
+            
+            int c = idx / (((inputHeight + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE) * 
+                          ((inputWidth + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE));
+            idx %= (((inputHeight + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE) * 
+                   ((inputWidth + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE));
+            
+            int blockH = idx / ((inputWidth + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE);
+            int blockW = idx % ((inputWidth + INPUT_BLOCK_SIZE - 1) / INPUT_BLOCK_SIZE);
+            
+            // Calculate block boundaries
+            int ih_start = blockH * INPUT_BLOCK_SIZE;
+            int ih_end = Math.min(ih_start + INPUT_BLOCK_SIZE, inputHeight);
+            int iw_start = blockW * INPUT_BLOCK_SIZE;
+            int iw_end = Math.min(iw_start + INPUT_BLOCK_SIZE, inputWidth);
+            
+            int dXChannelOffset = (i * numChannels + c) * inputHeight * inputWidth;
+            
+            // Precompute padding for position mapping
+            int padTop = 0, padLeft = 0;
+            if (padding.equals("same_padding")) {
+                int padTotal_h = Math.max(0, (outputHeight - 1) * stride + filterSize - inputHeight);
+                int padTotal_w = Math.max(0, (outputWidth - 1) * stride + filterSize - inputWidth);
+                padTop = padTotal_h / 2;
+                padLeft = padTotal_w / 2;
+            }
+            
+            // Process this spatial block
+            for (int ih = ih_start; ih < ih_end; ih++) {
+                for (int iw = iw_start; iw < iw_end; iw++) {
+                    float sum = 0;
+                    
+                    // For each filter
+                    for (int k = 0; k < numFilters; k++) {
+                        int filterChannelBaseOffset = (k * numChannels + c) * filterSize * filterSize;
+                        int dZFilterOffset = (i * numFilters + k) * outputHeight * outputWidth;
+                        
+                        // Determine range of filter positions that could affect this input pixel
+                        for (int fh = 0; fh < filterSize; fh++) {
+                            for (int fw = 0; fw < filterSize; fw++) {
+                                // Rotate filter by 180 degrees for the transposed convolution
+                                int rotatedFh = filterSize - 1 - fh;
+                                int rotatedFw = filterSize - 1 - fw;
+                                int filterPos = filterChannelBaseOffset + (rotatedFh * filterSize + rotatedFw);
+                                
+                                // Calculate corresponding output position with padding and stride
+                                int oh, ow;
+                                
+                                if (padding.equals("same_padding")) {
+                                    // Determine which output cell affects this input position
+                                    oh = (ih - rotatedFh + padTop) / stride;
+                                    ow = (iw - rotatedFw + padLeft) / stride;
+                                    
+                                    // Check for stride boundary
+                                    if ((ih - rotatedFh + padTop) % stride != 0 || 
+                                        (iw - rotatedFw + padLeft) % stride != 0) {
+                                        continue;
+                                    }
+                                } else { // valid padding
+                                    // For valid padding
+                                    oh = (ih - rotatedFh) / stride;
+                                    ow = (iw - rotatedFw) / stride;
+                                    
+                                    // Check for stride boundary
+                                    if ((ih - rotatedFh) % stride != 0 || 
+                                        (iw - rotatedFw) % stride != 0) {
+                                        continue;
+                                    }
+                                }
+                                
+                                if (oh >= 0 && oh < outputHeight && ow >= 0 && ow < outputWidth) {
+                                    int dZPos = dZFilterOffset + (oh * outputWidth + ow);
+                                    sum += filters.get(filterPos) * input.get(dZPos);
+                                }
+                            }
+                        }
+                    }
+                    
+                    int dXPos = dXChannelOffset + (ih * inputWidth + iw);
+                    dX.set(dXPos, sum);
                 }
             }
         });
