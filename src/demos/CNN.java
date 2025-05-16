@@ -1,24 +1,26 @@
 package demos;
 import jflow.data.*;
-import jflow.model.Builder;
 import jflow.model.Sequential;
 import jflow.utils.JPlot;
 import jflow.utils.Metrics;
 
+// Static import for cleaner UI
+import static jflow.model.Builder.*;
 /**
  * Demo to train a convolutional neural network (CNN) 
  * to classify trucks vs. automobiles using the CIFAR-10 dataset.
  */
-public class CNN extends Builder{
+public class CNN {
     // Helper method to add a block to the model
     private static void addConvBlock(Sequential model, int filters) {
         model
             .add(Conv2D(filters, 3, 1, "same_padding"))
             .add(Swish())
             .add(BatchNorm())
-            .add(Dropout(0.3))
+            .add(Dropout(0.25))
 
             .add(MaxPool2D(2, 2));
+
     }
 
     public static void main(String[] args) {
@@ -39,7 +41,7 @@ public class CNN extends Builder{
          * Declare labels to use a train labels reference csv.
          * We only want cars and trucks.
          */ 
-        String[] labelsToKeep = {"automobile","truck"};
+        String[] labelsToKeep = {"cat","dog"};
 
         loader.loadFromDirectory("datasets/cifar10", labelsToKeep, 
             "datasets/CifarTrainLabels.csv", 1.0, false);
@@ -79,14 +81,11 @@ public class CNN extends Builder{
         // Block 2
         addConvBlock(model, 64);
 
-        // Block 3
-        addConvBlock(model, 128);
-
 
         // Flatten and Dense layers
         model
             .add(Flatten())
-            .add(Dense(128))
+            .add(Dense(64))
             .add(Swish())
             .add(Dropout(0.3))
 
@@ -107,7 +106,7 @@ public class CNN extends Builder{
 
         // Train the model
         model.train(loader, 30, ModelCheckpoint(
-            "val_loss", "saved_weights/Cifar10 CNN Cars vs Trucks"));
+            "val_loss", "saved_weights/Cifar10 CNN Cats vs Dogs"));
 
         // Evaluate the model
         int[] predictions = model.predict(loader.getTestImages());

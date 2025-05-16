@@ -10,11 +10,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.function.Function;
 
 import jflow.data.*;
-import jflow.layers.internal.Dense;
-import jflow.layers.internal.Sigmoid;
+import jflow.layers.Dense;
+import jflow.layers.Sigmoid;
 import jflow.layers.templates.TrainableLayer;
 import jflow.utils.Metrics;
 
@@ -22,7 +21,7 @@ import jflow.utils.Metrics;
 
 // The sequential object represents a model
 public class Sequential{
-    private ArrayList<jflow.layers.internal.Layer> layers = new ArrayList<>();
+    private ArrayList<jflow.model.Layer> layers = new ArrayList<>();
     private int numClasses = -1;
     private static int sequentialCount;
     private int modelNum;
@@ -61,28 +60,221 @@ public class Sequential{
      * Add a layer to the model.
      * @param layer A JFlow Layer.
      */
+    // public Sequential add(Layer layer) {
+    //     String name = layer.getName();
+    //     // Update layer count in the hashmap
+    //     layerCounts.put(name, layerCounts.getOrDefault(name, 0) + 1);
+        
+    //     // Track the functional layer if it exists
+    //     FunctionalLayer currentFunctionalLayer = null;
+        
+    //     if (!layer.isInternal()) {
+    //         // Link non-internal layers
+    //         if (layers.isEmpty()) {
+    //             // First layer in the model
+    //             if (inputShape != null) {
+    //                 layer.setInputShape(inputShape);
+    //             }
+    //         } else {
+    //             // Find appropriate previous layer for connection
+                
+    //             // If the last layer was a functional layer, connect to it directly
+    //             if (layers.getLast() instanceof FunctionalLayer) {
+    //                 layer.setPreviousLayer(layers.getLast());
+    //                 layers.getLast().setNextLayer(layer);
+    //             } else {
+    //                 // Otherwise find the last non-internal layer
+    //                 Layer previousNonInternalLayer = null;
+    //                 for (int i = layers.size() - 1; i >= 0; i--) {
+    //                     if (!layers.get(i).isInternal()) {
+    //                         previousNonInternalLayer = layers.get(i);
+    //                         break;
+    //                     }
+    //                 }
+                    
+    //                 if (previousNonInternalLayer != null) {
+    //                     layer.setPreviousLayer(previousNonInternalLayer);
+    //                     previousNonInternalLayer.setNextLayer(layer);
+    //                 }
+    //             }
+    //         }
+    //     }
+        
+    //     // Build the layer after setting connections
+    //     layer.build(layerCounts.get(name));
+    //     // Add the layer to layers
+    //     layers.add(layer);
+        
+    //     // Special handling for FunctionalLayer
+    //     if (layer instanceof FunctionalLayer) {
+    //         currentFunctionalLayer = (FunctionalLayer)layer;
+    //         Layer[] internalLayers = currentFunctionalLayer.getLayers();
+            
+    //         if (internalLayers != null && internalLayers.length > 0) {
+    //             // Connect the first internal layer to the last non-functional layer
+    //             Layer previousNonInternalLayer = null;
+    //             for (int i = layers.size() - 2; i >= 0; i--) { // -2 to skip the functional layer
+    //                 if (!layers.get(i).isInternal()) {
+    //                     previousNonInternalLayer = layers.get(i);
+    //                     break;
+    //                 }
+    //             }
+                
+    //             if (previousNonInternalLayer != null) {
+    //                 internalLayers[0].setPreviousLayer(previousNonInternalLayer);
+    //                 previousNonInternalLayer.setNextLayer(internalLayers[0]);
+    //             }
+
+    //             // Connect internal layers to each other
+    //             for (int i = 1; i < internalLayers.length; i++) {
+    //                 internalLayers[i].setPreviousLayer(internalLayers[i - 1]);
+    //                 internalLayers[i - 1].setNextLayer(internalLayers[i]);
+    //             }
+                
+    //             // Add all internal layers to the layer list
+    //             for (Layer internalLayer : internalLayers) {
+    //                 String internalName = internalLayer.getName();
+    //                 layerCounts.put(internalName, layerCounts.getOrDefault(internalName, 0) + 1);
+    //                 internalLayer.build(layerCounts.get(internalName));
+    //                 layers.add(internalLayer);
+    //             }
+    //         }
+    //     }
+        
+    //     return this;
+    // }
     public Sequential add(Layer layer) {
-        jflow.layers.internal.Layer internal = layer.getInternal();
-        String name = internal.getName();
-        if (layerCounts.containsKey(name)) {
-            // Tick up the counter for the layer type
-            layerCounts.put(name, layerCounts.get(name) + 1);
-        } else {
-            // Add the layer type to the hashmap
-            layerCounts.put(name, 1);
-        }
-        // Link layers
-        if (layers.isEmpty()) {
-            if (inputShape != null) {
-                internal.setInputShape(inputShape);
+        String name = layer.getName();
+        // Update layer count in the hashmap
+        layerCounts.put(name, layerCounts.getOrDefault(name, 0) + 1);
+
+        if (!layer.isInternal()) {
+            // Link non-internal layers
+            if (layers.isEmpty()) {
+                // First layer in the model
+                if (inputShape != null) {
+                    layer.setInputShape(inputShape);
+                }
+            } else {
+                // Find appropriate previous layer for connection
+                // If the last layer was a functional layer, connect to it directly
+                if (layers.getLast() instanceof FunctionalLayer) {
+                    layer.setPreviousLayer(layers.getLast());
+                    layers.getLast().setNextLayer(layer);
+                } else {
+                    // Otherwise find the last non-internal layer
+                    Layer previousNonInternalLayer = null;
+                    for (int i = layers.size() - 1; i >= 0; i--) {
+                        if (!layers.get(i).isInternal()) {
+                            previousNonInternalLayer = layers.get(i);
+                            break;
+                        }
+                    }
+                    if (previousNonInternalLayer != null) {
+                        layer.setPreviousLayer(previousNonInternalLayer);
+                        previousNonInternalLayer.setNextLayer(layer);
+                    }
+                }
             }
-        } else {
-            layers.getLast().setNextLayer(internal);
-            internal.setPreviousLayer(layers.getLast());
         }
-        internal.build();
-        layers.add(internal);
+
+        // Build the layer after setting connections
+        layer.build(layerCounts.get(name));
+        
+        // Add the layer to layers
+        layers.add(layer);
+        
+        // Special handling for FunctionalLayer
+        if (layer instanceof FunctionalLayer) {
+            processFunctionalLayer((FunctionalLayer) layer);
+        }
+        
         return this;
+    }
+
+    private void processFunctionalLayer(FunctionalLayer functionalLayer) {
+        Layer[] internalLayers = functionalLayer.getLayers();
+        
+        if (internalLayers != null && internalLayers.length > 0) {
+            // Find the appropriate previous layer to connect the first internal layer
+            Layer previousLayerForConnection = findPreviousLayerForInternalLayer(functionalLayer);
+            
+            if (previousLayerForConnection != null) {
+                internalLayers[0].setPreviousLayer(previousLayerForConnection);
+                previousLayerForConnection.setNextLayer(internalLayers[0]);
+            }
+            
+            // Connect internal layers to each other
+            for (int i = 1; i < internalLayers.length; i++) {
+                internalLayers[i].setPreviousLayer(internalLayers[i - 1]);
+                internalLayers[i - 1].setNextLayer(internalLayers[i]);
+            }
+            
+            // Process each internal layer
+            for (Layer internalLayer : internalLayers) {
+                String internalName = internalLayer.getName();
+                layerCounts.put(internalName, layerCounts.getOrDefault(internalName, 0) + 1);
+                internalLayer.build(layerCounts.get(internalName));
+                layers.add(internalLayer);
+                
+                // Recursively process nested functional layers
+                if (internalLayer instanceof FunctionalLayer) {
+                    processFunctionalLayer((FunctionalLayer) internalLayer);
+                }
+            }
+        }
+    }
+    private Layer findPreviousLayerForInternalLayer(FunctionalLayer functionalLayer) {
+        // Find functional layer's index
+        int functionalLayerIndex = -1;
+        for (int i = 0; i < layers.size(); i++) {
+            if (layers.get(i) == functionalLayer) {
+                functionalLayerIndex = i;
+                break;
+            }
+        }
+        
+        if (functionalLayerIndex < 0) {
+            return null; // Functional layer not found in layers list
+        }
+        
+        // Find the previous layer that the first internal layer should connect to
+        // This should be the last non-internal layer before this functional layer
+        // or a layer with a different enclosing functional layer
+        
+        for (int i = functionalLayerIndex - 1; i >= 0; i--) {
+            Layer candidate = layers.get(i);
+            
+            // If the candidate is not internal, it's a valid connection
+            if (!candidate.isInternal()) {
+                return candidate;
+            }
+            
+            // If the candidate has a different enclosing layer than our functional layer,
+            // it could be a valid connection
+            Layer candidateEnclosing = candidate.getEnclosingLayer();
+            if (candidateEnclosing != null && !candidateEnclosing.equals(functionalLayer)) {
+                // We need to check if the candidate's enclosing layer is not contained within our functional layer
+                // This is to prevent connecting to layers in deeper nested functional layers
+                boolean isValid = true;
+                Layer checkLayer = candidateEnclosing;
+                
+                // Traverse up the enclosing chain to ensure we're not connecting to a deeper nested layer
+                while (checkLayer != null) {
+                    if (checkLayer.equals(functionalLayer)) {
+                        isValid = false;
+                        break;
+                    }
+                    checkLayer = checkLayer.getEnclosingLayer();
+                }
+                
+                if (isValid) {
+                    return candidate;
+                }
+            }
+        }
+        
+        return null;
     }
 
     /**
@@ -106,7 +298,7 @@ public class Sequential{
     // Initialize each trainable layer in the optimizer
     private void setOptimizer(Optimizer optimizer) {
         this.optimizer = optimizer;
-        for (jflow.layers.internal.Layer l : layers) {
+        for (jflow.model.Layer l : layers) {
             if (l instanceof TrainableLayer) {
                 TrainableLayer trainable = (TrainableLayer)l;
                 optimizer.initializeLayer(trainable);
@@ -119,7 +311,6 @@ public class Sequential{
             }
         }
     }
-
 
      /**
      * Retrieve the parameter gradients from the model. <p>
@@ -465,9 +656,11 @@ public class Sequential{
      * @return                     Returns the forward output of the last layer of the model.
      */
     public JMatrix forward(JMatrix images, boolean training) {
-        JMatrix output = layers.get(0).forward(images, training);;
-        for (int i = 1; i < layers.size(); i++) {
-            output = layers.get(i).forward(output, training);
+        JMatrix output = images;
+        for (int i = 0; i < layers.size(); i++) {
+            if (!layers.get(i).isInternal()) {
+                output = layers.get(i).forward(output, training);
+            }
         }
         return output;
     }
@@ -479,9 +672,11 @@ public class Sequential{
      * @return                     Returns the gradient, dX, of the first layer of the model.
      */
     public JMatrix backward(JMatrix yTrue) {
-        JMatrix gradient = layers.getLast().backward(yTrue);
-        for (int i = layers.size() - 2; i >= 0; i--) {
-            gradient = layers.get(i).backward(gradient);
+        JMatrix gradient = yTrue;
+        for (int i = layers.size() - 1; i >= 0; i--) {
+            if (!layers.get(i).isInternal()) {
+                gradient = layers.get(i).backward(gradient);
+            }
             if (debugMode) {
                 layers.get(i).printDebug();
             }
@@ -574,7 +769,7 @@ public class Sequential{
         internalSaveWeights(path, true);
     }
     private void internalSaveWeights(String path, boolean printReport) {
-        for (jflow.layers.internal.Layer l : layers) {
+        for (jflow.model.Layer l : layers) {
             // Check if the layer needs saving
             if (l instanceof TrainableLayer) {
                 TrainableLayer trainable = (TrainableLayer)l;
@@ -614,7 +809,7 @@ public class Sequential{
      * @param path               The location of the directory to load files from.
      */
     public void loadWeights(String path) {
-        for (jflow.layers.internal.Layer l : layers) {
+        for (jflow.model.Layer l : layers) {
             // Check if the layer needs loading
             if (l instanceof TrainableLayer) {
                 TrainableLayer trainable = (TrainableLayer)l;
@@ -645,7 +840,7 @@ public class Sequential{
         }
     }
 
-    private boolean isFlat(jflow.layers.internal.Layer layer) {
+    private boolean isFlat(jflow.model.Layer layer) {
         if (layer instanceof Dense) {
             return true;
         }
@@ -656,57 +851,92 @@ public class Sequential{
      * Print a model summary in the terminal.
      */
     public Sequential summary() {
+        // find the first Trainable Layer
+        int layerIndex = 0;
+        Layer finder = layers.get(layerIndex++);
+        while (! (finder instanceof TrainableLayer)) {
+            finder = layers.get(layerIndex++);
+        }
+        TrainableLayer first = (TrainableLayer)finder;
         // Run an empty JMatrix through the model
-        TrainableLayer first = (TrainableLayer)layers.getFirst();
         if (isFlat(first)) {
+            // Run a flat batch of 1 through the model
             JMatrix empty = new JMatrix(1, first.getInputShape()[0], 1, 1);
             forward(empty, false);
         } else {
+            // Run a 4D batch of 1 through the model
             JMatrix empty = new JMatrix(1, first.getInputShape()[0], 
                 first.getInputShape()[1], first.getInputShape()[2]);
             forward(empty, false);
         }
+        // Count the total number of layers that aren't FunctionalLayers
+        int numLayers = layers.size();
+        for (Layer l : layers) {
+            if (l instanceof FunctionalLayer) {
+                numLayers--;
+            }
+        }
 
         // Sum trainable paramters
         int trainableParameters = 0;
-        for (jflow.layers.internal.Layer l : layers) {
+        for (Layer l : layers) {
             trainableParameters += l.numTrainableParameters();
         }
+
         // Declare the size of each column
         int spacesType = 40;
         int spacesShape = 30;
         int spacesParam = 20;
+
         // Display the layer names and types
-        String[][] layerTypes = new String[layers.size() + 1][2];
+        String[][] layerTypes = new String[numLayers + 1][2];
         layerTypes[0][0] = "Layer";
         layerTypes[0][1] = "type";
-        
-        for (int i = 0; i < layers.size(); i++) {
-            String type = layers.get(i).getClass().getSimpleName();
 
-            String name = layers.get(i).getName();
-            layerTypes[i + 1][0] = name;
-            layerTypes[i + 1][1] = type;
+        int targetIndex = 1; // Start after header
+        for (Layer layer : layers) {
+            if (layer instanceof FunctionalLayer) {
+                continue; // Skip this layer
+            }
+
+            String type = layer.getClass().getSimpleName();
+            String name = layer.getName();
+            layerTypes[targetIndex][0] = name;
+            layerTypes[targetIndex][1] = type;
+            targetIndex++;
         }
 
-        String[] shapes = new String[layers.size() + 1];
+        String[] shapes = new String[numLayers + 1];
         shapes[0] = "Output Shape";
-        for (int i = 0; i < layers.size(); i++) {
-            int[] outputShape = layers.get(i).getOutputShape();
+
+        targetIndex = 1; // Start after header
+        for (Layer layer : layers) {
+            if (layer instanceof FunctionalLayer) {
+                continue; // Skip this layer
+            }
+
+            int[] outputShape = layer.outputShape();
             String shapeAsString = "";
+
             for (int j = 1; j < outputShape.length; j++) {
                 shapeAsString += outputShape[j];
                 if (j != outputShape.length - 1) {
                     shapeAsString += ",";
                 }
             }
+
             shapeAsString += ")";
-            shapes[i + 1] = shapeAsString;
+            shapes[targetIndex++] = shapeAsString;
         }
-        String[] params = new String[layers.size() + 1];
+        String[] params = new String[numLayers + 1];
         params[0] = "Param #";
-        for (int i = 0; i < layers.size(); i++) {
-            params[i + 1] = String.valueOf(layers.get(i).numTrainableParameters());
+        
+        targetIndex = 1; // Start after header
+        for (Layer layer : layers) {
+            if (layer instanceof FunctionalLayer) {
+                continue; // Skip this layer
+            }
+            params[targetIndex++] = String.valueOf(layer.numTrainableParameters());
         }
 
         String title = "\033[1;37m Model Summary";

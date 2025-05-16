@@ -1,4 +1,4 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 import java.util.stream.IntStream;
 
@@ -34,9 +34,9 @@ public class BatchNorm extends TrainableLayer {
 
     }
 
-    public void build() {
-        super.build();
-        this.featureSize = getPreviousLayer().getOutputShape()[1];
+    public void build(int IDnum) {
+        super.build(IDnum);
+        this.featureSize = getPreviousLayer().outputShape()[1];
 
         setNumTrainableParameters(featureSize * 2);
 
@@ -363,8 +363,8 @@ public class BatchNorm extends TrainableLayer {
     }
 
     @Override
-    public int[] getOutputShape() {
-        return getPreviousLayer().getOutputShape();
+    public int[] outputShape() {
+        return getPreviousLayer().outputShape();
     }
     @Override
     public void updateParameters(JMatrix[] parameterUpdates) {

@@ -1,4 +1,4 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 import java.util.function.BiFunction;
 import java.util.function.Function;

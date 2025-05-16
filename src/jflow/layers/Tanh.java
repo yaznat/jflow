@@ -1,38 +1,35 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 import java.util.stream.IntStream;
-
 import jflow.data.JMatrix;
 import jflow.layers.templates.ShapePreservingLayer;
 
-public class ReLU extends ShapePreservingLayer{
-    public ReLU(){
-        super("re_lu");
+public class Tanh extends ShapePreservingLayer{
+    public Tanh() {
+        super("tanh");
     }
-
     @Override
     public JMatrix forward(JMatrix input, boolean training) {
+        JMatrix output = input.zerosLike();
+
         int size = input.size();
-        JMatrix Z = input.zerosLike();
-
         IntStream.range(0, size).parallel().forEach(i -> {
-            Z.set(i, (input.get(i) > 0) ? input.get(i) : 0);
+            output.set(i, Math.tanh(input.get(i)));
         });
-
-        return trackOutput(Z);
+        return trackOutput(output);
     }
 
     @Override
     public JMatrix backward(JMatrix gradient) {
-        int size = gradient.size();
         JMatrix output = getOutput();
         JMatrix dZ = output.zerosLike();
+        int size = output.size();
 
         IntStream.range(0, size).parallel().forEach(i -> {
-            dZ.set(i, (output.get(i) > 0) ? gradient.get(i) : 0);
+            double tanhVal = Math.tanh(output.get(i));  
+            double dTanh = 1 - tanhVal * tanhVal;  
+            dZ.set(i, gradient.get(i) * dTanh);
         });
-       
         return trackGradient(dZ);
-    }
+    }    
 }
-

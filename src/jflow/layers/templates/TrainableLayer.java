@@ -14,7 +14,7 @@ public abstract class TrainableLayer extends ShapeAlteringLayer{
     public abstract JMatrix[] getWeights();
 
     @Override 
-    public JMatrix[] debugData() {
+    protected JMatrix[] debugData() {
         JMatrix[] parameterGradients = getParameterGradients();
         int numParameterGradients = parameterGradients.length;
 

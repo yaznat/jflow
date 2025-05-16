@@ -1,4 +1,4 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 
 import jflow.data.JMatrix;
@@ -18,13 +18,13 @@ public class Flatten extends ShapeAlteringLayer{
 
     @Override
     public JMatrix backward(JMatrix input) {
-        JMatrix gradient = input.reshape(getPreviousLayer().getOutputShape());
+        JMatrix gradient = input.reshape(getPreviousLayer().outputShape());
         return trackGradient(gradient);
     }
     
     @Override
-    public int[] getOutputShape() {
-        int[] prevOutputShape = getPreviousLayer().getOutputShape();
+    public int[] outputShape() {
+        int[] prevOutputShape = getPreviousLayer().outputShape();
         int flattenedSize = prevOutputShape[1] * prevOutputShape[2] * prevOutputShape[3];
 
         return new int[]{-1, flattenedSize};

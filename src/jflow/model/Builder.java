@@ -4,7 +4,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import jflow.data.JMatrix;
-import jflow.layers.internal.*;
+import jflow.layers.*;
 
 /**
  * Extend this class for access to JFlow Layers, Optimizers, and other components.
@@ -33,15 +33,15 @@ public class Builder {
      * @param size                  The output size of the Dense layer.
      * @param input                 The 1D input shape to the Dense layer.
      */
-    public static Layer Dense(int size, InputShape input) {
-        return new Layer(new Dense(size, input.getShape()));
+    public static Dense Dense(int size, InputShape input) {
+        return new Dense(size, input.getShape());
     }
     /**
      * A Dense layer.
      * @param size                  The output size of the Dense layer.
      */
-    public static Layer Dense(int size) {
-        return new Layer(new Dense(size));
+    public static Dense Dense(int size) {
+        return new Dense(size);
     }
     /**
      * A Conv2D layer.
@@ -51,8 +51,8 @@ public class Builder {
      *                                  - same_padding - valid_padding
      * @param stride                The stride to apply in convolution.
      */
-    public static Layer Conv2D(int numFilters, int filterSize, int stride, String padding) {
-        return new Layer(new Conv2D(numFilters, filterSize, stride, padding));
+    public static Conv2D Conv2D(int numFilters, int filterSize, int stride, String padding) {
+        return new Conv2D(numFilters, filterSize, stride, padding);
     }
         /**
      * A Conv2D layer.
@@ -63,63 +63,63 @@ public class Builder {
      * @param stride                The stride to apply in convolution.
      * @param InputShape            The 3D input shape to the Conv2D layer.
      */
-    public static Layer Conv2D(int numFilters, int filterSize, int stride, String padding, InputShape input) {
-        return new Layer(new Conv2D(numFilters, filterSize, stride, padding, input.getShape()));
+    public static Conv2D Conv2D(int numFilters, int filterSize, int stride, String padding, InputShape input) {
+        return new Conv2D(numFilters, filterSize, stride, padding, input.getShape());
     }
     /**
      * A MaxPool2D layer.
      * @param poolSize              The pool size to use in max pooling.
      * @param stride                The stride to use in max pooling.
      */
-    public static Layer MaxPool2D(int poolSize, int stride) {
-        return new Layer(new MaxPool2D(poolSize, stride));
+    public static MaxPool2D MaxPool2D(int poolSize, int stride) {
+        return new MaxPool2D(poolSize, stride);
     }
     /**
      * Averages spatial dimensions along every channel.
      */
     public static Layer GlobalAveragePooling2D() {
-        return new Layer(new GlobalAveragePooling2D());
+        return new GlobalAveragePooling2D();
     }
 
     /**
      * A flatten layer. Flattens 4D data.
      */
-    public static Layer Flatten() {
-        return new Layer(new Flatten());
+    public static Flatten Flatten() {
+        return new Flatten();
     }
     /**
      * The ReLU activation.
      */
-    public static Layer ReLU() {
-        return new Layer(new ReLU());
+    public static ReLU ReLU() {
+        return new ReLU();
     }
     /**
      * The LeakyRelu activation.
      * @param alpha             The slope to use in the ReLU function.
      */
     public static Layer LeakyReLU(double alpha) {
-        return new Layer(new LeakyReLU(alpha));
+        return new LeakyReLU(alpha);
     }
 
     /**
      * The Softmax activation.
      */
-    public static Layer Softmax() {
-        return new Layer(new Softmax());
+    public static Softmax Softmax() {
+        return new Softmax();
     }
 
     /**
      * The Swish activation.
      */
-    public static Layer Swish() {
-        return new Layer(new Swish());
+    public static Swish Swish() {
+        return new Swish();
     }
 
     /**
      * The Mish activation.
      */
-    public static Layer Mish() {
-        return new Layer(new Mish());
+    public static Mish Mish() {
+        return new Mish();
     }
 
     /**
@@ -127,15 +127,15 @@ public class Builder {
      * @param alpha             The percent of nuerons to drop.
      * 
      */
-    public static Layer Dropout(double alpha) {
-        return new Layer(new Dropout(alpha));
+    public static Dropout Dropout(double alpha) {
+        return new Dropout(alpha);
     }
 
     /**
      * The Sigmoid activation.
      */
-    public static Layer Sigmoid() {
-        return new Layer(new Sigmoid());
+    public static Sigmoid Sigmoid() {
+        return new Sigmoid();
     }
 
     /**
@@ -144,23 +144,23 @@ public class Builder {
      * @param height                The height dimension to reshape to.
      * @param width                 The width dimension to reshape to.
      */
-    public static Layer Reshape(int channels, int height, int width) {
-        return new Layer(new Reshape(channels, height, width));
+    public static Reshape Reshape(int channels, int height, int width) {
+        return new Reshape(channels, height, width);
     }
 
     /**
      * The Upsampling2D Layer.
      * @param scaleFactor            The factor to upsample by.
      */
-    public static Layer Upsampling2D(int scaleFactor) {
-        return new Layer(new Upsampling2D(scaleFactor));
+    public static Upsampling2D Upsampling2D(int scaleFactor) {
+        return new Upsampling2D(scaleFactor);
     }
 
     /**
      * The BatchNorm layer.
      */
-    public static Layer BatchNorm() {
-        return new Layer(new BatchNorm());
+    public static BatchNorm BatchNorm() {
+        return new BatchNorm();
     }
     /**
      * Add a custom activation function to the model.
@@ -173,14 +173,14 @@ public class Builder {
      */
     public static Layer customActivation(Function<JMatrix, JMatrix> activation, 
         BiFunction<JMatrix, JMatrix, JMatrix> dActivation, String name) {
-        return new Layer(new CustomActivation(activation, dActivation, name));
+        return new CustomActivation(activation, dActivation, name);
     }
 
     /**
      * The Tanh activation.
      */
-    public static Layer Tanh() {
-        return new Layer(new Tanh());
+    public static Tanh Tanh() {
+        return new Tanh();
     }
 
 

@@ -1,4 +1,4 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 import java.util.stream.IntStream;
 
@@ -33,8 +33,8 @@ public class Dense extends TrainableLayer {
     }
 
     @Override
-    public void build() {
-        super.build();
+    public void build(int IDnum) {
+        super.build(IDnum);
         int inputSize;
         if (internalGetInputShape() != null) {
             inputSize = internalGetInputShape()[0];
@@ -46,7 +46,7 @@ public class Dense extends TrainableLayer {
                 );
             }
             // Channel dimension
-            inputSize = getPreviousLayer().getOutputShape()[1];
+            inputSize = getPreviousLayer().outputShape()[1];
         }
         setNumTrainableParameters(inputSize * outputSize + outputSize);
 
@@ -74,9 +74,10 @@ public class Dense extends TrainableLayer {
 
     @Override
     public JMatrix forward(JMatrix input, boolean training) {
-        if (getPreviousLayer() == null || !(getPreviousShapeInfluencer() instanceof Dense)) {
+        if (input.length() != 
+                weights.channels() * weights.height() * weights.width()) {
             input = input.transpose2D();
-        } 
+        }
         // Store lastInput for backpropagation
         lastInput = input;
 
@@ -168,7 +169,7 @@ public class Dense extends TrainableLayer {
     }
 
     @Override
-    public int[] getOutputShape() {
+    public int[] outputShape() {
         int[] outputShape = new int[] {-1, outputSize};
         return outputShape;
     }

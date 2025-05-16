@@ -1,4 +1,4 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 import java.util.stream.IntStream;
 
@@ -68,8 +68,8 @@ public class GlobalAveragePooling2D extends ShapeAlteringLayer{
 
 
     @Override
-    public int[] getOutputShape() {
+    public int[] outputShape() {
         // Channels of the previous layer
-        return new int[]{-1, getPreviousLayer().getOutputShape()[1]};
+        return new int[]{-1, getPreviousLayer().outputShape()[1]};
     }
 }

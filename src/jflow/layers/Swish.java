@@ -1,4 +1,4 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 import java.util.stream.IntStream;
 import jflow.data.JMatrix;

@@ -1,4 +1,4 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 import java.util.stream.IntStream;
 
@@ -119,9 +119,9 @@ public class MaxPool2D extends ShapeAlteringLayer {
     }
 
     @Override
-    public int[] getOutputShape() {
+    public int[] outputShape() {
         int[] outputShape = null;
-        int[] prev = getPreviousLayer().getOutputShape();
+        int[] prev = getPreviousLayer().outputShape();
 
         if (getOutput() != null) {
             outputShape = getOutput().shape();

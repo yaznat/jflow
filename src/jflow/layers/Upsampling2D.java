@@ -1,4 +1,4 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 import java.util.stream.IntStream;
 
@@ -94,8 +94,8 @@ public class Upsampling2D extends ShapeAlteringLayer{
 
 
     @Override
-    public int[] getOutputShape() {
-        int[] shape = getPreviousLayer().getOutputShape().clone();
+    public int[] outputShape() {
+        int[] shape = getPreviousLayer().outputShape().clone();
         shape[2] *= scaleFactor;
         shape[3] *= scaleFactor;
         return shape;

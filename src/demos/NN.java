@@ -4,11 +4,14 @@ import jflow.model.*;
 import jflow.utils.JPlot;
 import jflow.utils.Metrics;
 
+// Static import for cleaner UI
+import static jflow.model.Builder.*;
+
 /**
  * Demo to train a neural network on the MNIST dataset.
  * Reaches ~97% test accuracy after 10 epochs.
  */
-public class NN extends Builder{
+public class NN {
     public static void main(String[] args) {
         // training constants
         final int BATCH_SIZE = 64;
@@ -41,7 +44,6 @@ public class NN extends Builder{
             .get(0).get((int)(Math.random() * BATCH_SIZE)), 20);
 
         
-
         // Build the model
         Sequential model = new Sequential("MNIST_neural_network")
             .add(Dense(128, InputShape(FLAT_IMAGE_SIZE)))
@@ -49,8 +51,11 @@ public class NN extends Builder{
 
             .add(Dense(64))
             .add(Mish())
-            .add(Dropout(0.3))
+            .add(Dropout(0.2))
 
+            .add(Dense(32))
+            .add(Mish())
+            .add(Dropout(0.2))
 
             .add(Dense(NUM_CLASSES))
             .add(Softmax())

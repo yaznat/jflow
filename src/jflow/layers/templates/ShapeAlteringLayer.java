@@ -1,7 +1,7 @@
 package jflow.layers.templates;
 
 import jflow.data.JMatrix;
-import jflow.layers.internal.Layer;
+import jflow.model.Layer;
 
 public abstract class ShapeAlteringLayer extends Layer{
     public ShapeAlteringLayer(String type) {

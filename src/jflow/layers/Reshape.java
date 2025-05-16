@@ -1,4 +1,4 @@
-package jflow.layers.internal;
+package jflow.layers;
 
 import jflow.data.JMatrix;
 import jflow.layers.templates.ShapeAlteringLayer;
@@ -43,7 +43,7 @@ public class Reshape extends ShapeAlteringLayer{
     }
 
     @Override
-    public int[] getOutputShape() {
+    public int[] outputShape() {
         return new int[] {-1, newChannels, newHeight, newWidth};
     }
 }

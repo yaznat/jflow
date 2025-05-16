@@ -1,7 +1,7 @@
 package jflow.layers.templates;
 
 import jflow.data.JMatrix;
-import jflow.layers.internal.Layer;
+import jflow.model.Layer;
 
 public abstract class ShapePreservingLayer extends Layer{
 
@@ -14,8 +14,8 @@ public abstract class ShapePreservingLayer extends Layer{
     public abstract JMatrix backward(JMatrix input);
 
     @Override
-    public int[] getOutputShape() {
-        return getPreviousLayer().getOutputShape();
+    public int[] outputShape() {
+        return getPreviousLayer().outputShape();
     }    
 
     @Override
