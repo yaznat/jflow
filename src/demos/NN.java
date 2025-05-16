@@ -51,11 +51,7 @@ public class NN {
 
             .add(Dense(64))
             .add(Mish())
-            .add(Dropout(0.2))
-
-            .add(Dense(32))
-            .add(Mish())
-            .add(Dropout(0.2))
+            .add(Dropout(0.3))
 
             .add(Dense(NUM_CLASSES))
             .add(Softmax())

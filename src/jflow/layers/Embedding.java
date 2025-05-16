@@ -19,22 +19,14 @@ public class Embedding extends TrainableLayer {
         this.vocabSize = vocabSize;
         this.embedDim = embedDim;
 
-       build(vocabSize, embedDim);
+        this.embeddings = JMatrix.randn(vocabSize, embedDim, 1, 1).multiply(0.02); // standard scale factor
+        this.gradEmbeddings = new JMatrix(vocabSize, embedDim, 1, 1);
     }
 
     public Embedding(int vocabSize, int embedDim, int[] inputShape) {
-        super("embedding");
-        this.vocabSize = vocabSize;
-        this.embedDim = embedDim;
+        this(vocabSize, embedDim);
 
         setInputShape(inputShape);
-
-        build(vocabSize, embedDim);
-    }
-
-    private void build(int vocabSize, int embedDim) {
-        this.embeddings = JMatrix.randn(vocabSize, embedDim, 1, 1).multiply(0.02); // standard scale factor
-        this.gradEmbeddings = new JMatrix(vocabSize, embedDim, 1, 1);
     }
 
     @Override

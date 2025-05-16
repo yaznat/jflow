@@ -7,7 +7,7 @@ import jflow.data.JMatrix;
 import jflow.layers.*;
 
 /**
- * Extend this class for access to JFlow Layers, Optimizers, and other components.
+ * Import this class statically for access to JFlow Layers, Optimizers, and other components.
  */
 public class Builder {
 
@@ -123,6 +123,13 @@ public class Builder {
     }
 
     /**
+     * The GELU activation.
+     */
+    public static GELU GELU() {
+        return new GELU();
+    }
+
+    /**
      * The Dropout function. <p>
      * @param alpha             The percent of nuerons to drop.
      * 
@@ -161,6 +168,27 @@ public class Builder {
      */
     public static BatchNorm BatchNorm() {
         return new BatchNorm();
+    }
+
+    /**
+     * The Embedding layer.
+     * @param vocabSize             The number of tokens.
+     * @param embedDim              The size of embedding vectors.
+     * @return
+     */
+    public static Embedding Embedding(int vocabSize, int embedDim) {
+        return new Embedding(vocabSize, embedDim);
+    }
+
+    /**
+     * The Embedding layer.
+     * @param vocabSize             The number of tokens.
+     * @param embedDim              The size of embedding vectors.
+     * @param inputShape            The seqLength of the Embedding layer.
+     * @return
+     */
+    public static Embedding Embedding(int vocabSize, int embedDim, InputShape inputShape) {
+        return new Embedding(vocabSize, embedDim, inputShape.getShape());
     }
     /**
      * Add a custom activation function to the model.
