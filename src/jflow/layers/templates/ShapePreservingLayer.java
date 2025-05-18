@@ -20,6 +20,9 @@ public abstract class ShapePreservingLayer extends Layer{
 
     @Override
     protected JMatrix[] debugData() {
+        if (getGradient() == null) {
+            return null;
+        }
         return new JMatrix[]{getGradient().setName("dX")};
     }
 }
