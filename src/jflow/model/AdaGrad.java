@@ -42,6 +42,10 @@ public class AdaGrad extends Optimizer {
             
             // Apply updates
             layer.updateParameters(updates);
+            // Reset gradients
+            for (JMatrix m : layer.getParameterGradients()) {
+                m.fill(0);
+            }
         }
     }
 

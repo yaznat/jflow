@@ -5,7 +5,7 @@ import java.util.stream.IntStream;
 import jflow.data.JMatrix;
 import jflow.layers.templates.TrainableLayer;
 
-import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Conv2D extends TrainableLayer {
     private JMatrix filters;
@@ -73,7 +73,7 @@ public class Conv2D extends TrainableLayer {
         }
         setNumTrainableParameters(numFilters * numChannels * filterSize * filterSize + numFilters);
         // He initialization
-        Random rand = new Random();
+
         double stdDev = Math.sqrt(2.0 / (numChannels * filterSize * filterSize));
 
         double filterScale = 1.0;
@@ -82,7 +82,7 @@ public class Conv2D extends TrainableLayer {
         float[] filters = new float[filterSizeTotal];
 
         IntStream.range(0, filterSizeTotal).parallel().forEach(i -> {
-            filters[i] = (float)(rand.nextGaussian() * stdDev * filterScale);
+            filters[i] = (float)(ThreadLocalRandom.current().nextGaussian() * stdDev * filterScale);
         });
 
         this.filters = new JMatrix(filters, numFilters, numChannels, filterSize, filterSize, "filters");
@@ -156,10 +156,6 @@ public class Conv2D extends TrainableLayer {
             outputHeight = (inputHeight - filterSize) / stride + 1;
             outputWidth = (inputWidth - filterSize) / stride + 1;
         }
-    
-        // Reset gradients
-        dFilters.fill(0);
-        dBiases.fill(0);
         
         // Initialize dX with proper dimensions
         JMatrix dX = new JMatrix(numImages, numChannels, inputHeight, inputWidth);
@@ -469,4 +465,5 @@ public class Conv2D extends TrainableLayer {
         }
         return outputShape;
     }
+   
 }

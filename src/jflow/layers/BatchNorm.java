@@ -41,8 +41,7 @@ public class BatchNorm extends TrainableLayer {
         setNumTrainableParameters(featureSize * 2);
 
         // Initialize gamma values as 1.0
-        this.gamma = new JMatrix(1, featureSize, 1, 1, "gamma");
-        gamma.fill(1.0f);
+        this.gamma = new JMatrix(1, featureSize, 1, 1, "gamma").fill(1.0f);
         
         // Initialize beta values as 0.0
         this.beta = new JMatrix(1, featureSize, 1, 1, "beta");
@@ -137,6 +136,7 @@ public class BatchNorm extends TrainableLayer {
     /*
      * Calculate the mean across the batch 
      * and spatial dimensions for each channel.
+     * Reuse the mean calculation.
      */ 
     private JMatrix calcVariance(JMatrix input, JMatrix mean) {
         JMatrix var = new JMatrix(1, featureSize, 1, 1);
@@ -251,8 +251,6 @@ public class BatchNorm extends TrainableLayer {
         int elements = batchSize * spatialSize;
         
         // Reset accumulated gradients
-        dGamma.fill(0);
-        dBeta.fill(0);
         dxHatSum.fill(0);
         dxHatXhatSum.fill(0);
         
@@ -381,6 +379,8 @@ public class BatchNorm extends TrainableLayer {
             }
         }
     }
+
+    
 
     @Override
     public JMatrix getOutput() {

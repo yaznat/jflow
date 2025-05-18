@@ -19,6 +19,7 @@ public abstract class Layer {
     private int IDnum;
 
     private boolean isShapeInfluencer;
+    private boolean gradientStorageDisabled = false;
         
     protected Layer(String type, boolean isShapeInfluencer) {
         this.type = type;
@@ -56,12 +57,22 @@ public abstract class Layer {
     }
     
     protected JMatrix trackGradient(JMatrix gradient) {
-        this.gradient = gradient;
+        if (!gradientStorageDisabled) {
+            this.gradient = gradient;
+        }
         return gradient;
     }
 
     protected void setInputShape(int[] inputShape) {
         this.inputShape = inputShape;
+    }
+
+    protected void disableGradientStorage() {
+        gradientStorageDisabled = true;
+    }
+
+    protected boolean gradientStorageDisabled() {
+        return gradientStorageDisabled;
     }
     
     protected int[] internalGetInputShape() {
@@ -69,10 +80,10 @@ public abstract class Layer {
     }
 
     protected int[] getInputShape() {
-        if (internalGetInputShape() != null) {
-            return internalGetInputShape();
+        if (internalGetInputShape() == null) {
+            return getPreviousLayer().outputShape();
         }
-        return getPreviousLayer().outputShape();
+        return internalGetInputShape();
     }
 
     // True if this layer changes output shape (e.g., Dense, Conv2D, Flatten)
@@ -161,25 +172,28 @@ public abstract class Layer {
 
     public void printDebug() {
         JMatrix[] debugData = debugData();
-        String title = getName() + " gradients";
-        System.out.println("\033[94m╭──────────────────── \033[0m\033[1;94m" + 
-        title + "\033[0m\033[94m ────────────────────╮\033[0m");
+        if (!(debugData == null)) {
+            String title = getName() + " gradients";
+            System.out.println("\033[94m╭──────────────────── \033[0m\033[1;94m" + 
+            title + "\033[0m\033[94m ────────────────────╮\033[0m");
 
-        // Iterate over entries
-        for (JMatrix data : debugData) {
-            String dataName = data.getName();
-            System.out.print("\033[94m│\033[0m " + "\033[38;2;0;153;153m" + dataName + "\033[0m");
-            // Print statistics for the entry
-            System.out.print(" \033[38;2;222;197;15m|\033[0m \033[38;2;255;165;0mshape:\033[0m \033[37m" + data.shapeAsString() + "\033[0m"); // shape
-            System.out.print(" \033[38;2;222;197;15m|\033[0m \033[38;2;255;165;0mabsmax:\033[0m \033[37m" + data.absMax() + "\033[0m"); // absmax
-            System.out.print(" \033[38;2;222;197;15m|\033[0m \033[38;2;255;165;0mmean:\033[0m \033[37m" + data.mean() + "\033[0m"); // mean
-            System.out.print(" \033[38;2;222;197;15m|\033[0m \033[38;2;255;165;0mL1:\033[0m \033[37m" + data.l1Norm() + "\033[0m\n"); // L1 norm
+            // Iterate over entries
+            for (JMatrix data : debugData) {
+                String dataName = data.getName();
+                System.out.print("\033[94m│\033[0m " + "\033[38;2;0;153;153m" + dataName + "\033[0m");
+                // Print statistics for the entry
+                System.out.print(" \033[38;2;222;197;15m|\033[0m \033[38;2;255;165;0mshape:\033[0m \033[37m" + data.shapeAsString() + "\033[0m"); // shape
+                System.out.print(" \033[38;2;222;197;15m|\033[0m \033[38;2;255;165;0mabsmax:\033[0m \033[37m" + data.absMax() + "\033[0m"); // absmax
+                System.out.print(" \033[38;2;222;197;15m|\033[0m \033[38;2;255;165;0mmean:\033[0m \033[37m" + data.mean() + "\033[0m"); // mean
+                System.out.print(" \033[38;2;222;197;15m|\033[0m \033[38;2;255;165;0mL1:\033[0m \033[37m" + data.l1Norm() + "\033[0m\n"); // L1 norm
+            }
+            String closer = "\033[94m╰─────────────────────";
+            for (int i = 0; i < title.length(); i++) {
+                closer += "─";
+            }
+            closer += "─────────────────────╯\033[0m";
+            System.out.println(closer);
         }
-        String closer = "\033[94m╰─────────────────────";
-        for (int i = 0; i < title.length(); i++) {
-            closer += "─";
-        }
-        closer += "─────────────────────╯\033[0m";
-        System.out.println(closer);
+        
     }
 }

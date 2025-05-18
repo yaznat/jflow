@@ -29,19 +29,38 @@ public class Builder {
     }
 
     /**
-     * A Dense layer.
+     * A Dense layer with bias.
      * @param size                  The output size of the Dense layer.
      * @param input                 The 1D input shape to the Dense layer.
      */
     public static Dense Dense(int size, InputShape input) {
         return new Dense(size, input.getShape());
     }
+
     /**
      * A Dense layer.
+     * @param size                  The output size of the Dense layer.
+     * @param input                 The 1D input shape to the Dense layer.
+     * @param useBias               Whether or not to use biases.
+     */
+    public static Dense Dense(int size, InputShape input, boolean useBias) {
+        return new Dense(size, input.getShape(), useBias);
+    }
+    /**
+     * A Dense layer with bias.
      * @param size                  The output size of the Dense layer.
      */
     public static Dense Dense(int size) {
         return new Dense(size);
+    }
+
+    /**
+     * A Dense layer.
+     * @param size                  The output size of the Dense layer.
+     * @param useBias               Whether or not to use biases.
+     */
+    public static Dense Dense(int size, boolean useBias) {
+        return new Dense(size, useBias);
     }
     /**
      * A Conv2D layer.
@@ -168,6 +187,13 @@ public class Builder {
      */
     public static BatchNorm BatchNorm() {
         return new BatchNorm();
+    }
+
+    /**
+     * The LayerNorm layer.
+     */
+    public static LayerNorm LayerNorm() {
+        return new LayerNorm();
     }
 
     /**
