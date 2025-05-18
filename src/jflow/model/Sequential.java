@@ -13,6 +13,7 @@ import java.util.HashMap;
 
 import jflow.data.*;
 import jflow.layers.Dense;
+import jflow.layers.Embedding;
 import jflow.layers.Sigmoid;
 import jflow.layers.templates.TrainableLayer;
 import jflow.utils.Metrics;
@@ -60,89 +61,6 @@ public class Sequential{
      * Add a layer to the model.
      * @param layer A JFlow Layer.
      */
-    // public Sequential add(Layer layer) {
-    //     String name = layer.getName();
-    //     // Update layer count in the hashmap
-    //     layerCounts.put(name, layerCounts.getOrDefault(name, 0) + 1);
-        
-    //     // Track the functional layer if it exists
-    //     FunctionalLayer currentFunctionalLayer = null;
-        
-    //     if (!layer.isInternal()) {
-    //         // Link non-internal layers
-    //         if (layers.isEmpty()) {
-    //             // First layer in the model
-    //             if (inputShape != null) {
-    //                 layer.setInputShape(inputShape);
-    //             }
-    //         } else {
-    //             // Find appropriate previous layer for connection
-                
-    //             // If the last layer was a functional layer, connect to it directly
-    //             if (layers.getLast() instanceof FunctionalLayer) {
-    //                 layer.setPreviousLayer(layers.getLast());
-    //                 layers.getLast().setNextLayer(layer);
-    //             } else {
-    //                 // Otherwise find the last non-internal layer
-    //                 Layer previousNonInternalLayer = null;
-    //                 for (int i = layers.size() - 1; i >= 0; i--) {
-    //                     if (!layers.get(i).isInternal()) {
-    //                         previousNonInternalLayer = layers.get(i);
-    //                         break;
-    //                     }
-    //                 }
-                    
-    //                 if (previousNonInternalLayer != null) {
-    //                     layer.setPreviousLayer(previousNonInternalLayer);
-    //                     previousNonInternalLayer.setNextLayer(layer);
-    //                 }
-    //             }
-    //         }
-    //     }
-        
-    //     // Build the layer after setting connections
-    //     layer.build(layerCounts.get(name));
-    //     // Add the layer to layers
-    //     layers.add(layer);
-        
-    //     // Special handling for FunctionalLayer
-    //     if (layer instanceof FunctionalLayer) {
-    //         currentFunctionalLayer = (FunctionalLayer)layer;
-    //         Layer[] internalLayers = currentFunctionalLayer.getLayers();
-            
-    //         if (internalLayers != null && internalLayers.length > 0) {
-    //             // Connect the first internal layer to the last non-functional layer
-    //             Layer previousNonInternalLayer = null;
-    //             for (int i = layers.size() - 2; i >= 0; i--) { // -2 to skip the functional layer
-    //                 if (!layers.get(i).isInternal()) {
-    //                     previousNonInternalLayer = layers.get(i);
-    //                     break;
-    //                 }
-    //             }
-                
-    //             if (previousNonInternalLayer != null) {
-    //                 internalLayers[0].setPreviousLayer(previousNonInternalLayer);
-    //                 previousNonInternalLayer.setNextLayer(internalLayers[0]);
-    //             }
-
-    //             // Connect internal layers to each other
-    //             for (int i = 1; i < internalLayers.length; i++) {
-    //                 internalLayers[i].setPreviousLayer(internalLayers[i - 1]);
-    //                 internalLayers[i - 1].setNextLayer(internalLayers[i]);
-    //             }
-                
-    //             // Add all internal layers to the layer list
-    //             for (Layer internalLayer : internalLayers) {
-    //                 String internalName = internalLayer.getName();
-    //                 layerCounts.put(internalName, layerCounts.getOrDefault(internalName, 0) + 1);
-    //                 internalLayer.build(layerCounts.get(internalName));
-    //                 layers.add(internalLayer);
-    //             }
-    //         }
-    //     }
-        
-    //     return this;
-    // }
     public Sequential add(Layer layer) {
         String name = layer.getName();
         // Update layer count in the hashmap
@@ -150,7 +68,7 @@ public class Sequential{
 
         if (!layer.isInternal()) {
             // Link non-internal layers
-            if (layers.isEmpty()) {
+            if (layers.isEmpty() || onlyFunctionalLayers()) {
                 // First layer in the model
                 if (inputShape != null) {
                     layer.setInputShape(inputShape);
@@ -177,19 +95,34 @@ public class Sequential{
                 }
             }
         }
-
-        // Build the layer after setting connections
-        layer.build(layerCounts.get(name));
         
         // Add the layer to layers
         layers.add(layer);
+
+        // Build the layer after setting connections
+        layer.build(layerCounts.get(name));
         
         // Special handling for FunctionalLayer
         if (layer instanceof FunctionalLayer) {
             processFunctionalLayer((FunctionalLayer) layer);
         }
+
+      
         
         return this;
+    }
+
+    // Checks if layers contains only FunctionalLayers 
+    private boolean onlyFunctionalLayers() {
+        if (layers.size() == 0) {
+            return false;
+        }
+        for (Layer l : layers) {
+            if (!(l instanceof FunctionalLayer)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void processFunctionalLayer(FunctionalLayer functionalLayer) {
@@ -291,8 +224,9 @@ public class Sequential{
      * Prepare the model for training.
      * @param optimizer The desired optimizer.
      */
-    public void compile(Optimizer optimizer) {
+    public Optimizer compile(Optimizer optimizer) {
         setOptimizer(optimizer);
+        return optimizer;
     }
 
     // Initialize each trainable layer in the optimizer
@@ -341,6 +275,20 @@ public class Sequential{
     }
 
     /**
+     * Disable gradient storage for very large models. <p>
+     * 
+     * Gradient storage is enabled by default, keeping a record of the most recent forward output
+     * and backward gradient for each layer. This behavior is crucial for gradient debugging, 
+     * as well as allowing the user to manually access these values from a layer. In the case of 
+     * very large models, it may be necessary to disable gradient storage for the sake of memory.
+     */
+    public Sequential disableGradientStorage() {
+        for (Layer l : layers) {
+            l.disableGradientStorage();
+        }
+        return this;
+    }
+    /**
      * Train the model.
      * @param loader                A Dataloader containing train images.
      * @param epochs                The number of epochs to train.
@@ -359,16 +307,6 @@ public class Sequential{
     public void train(Dataloader loader, int epochs, ModelCheckpoint checkpoint) {
         runTraining(loader, epochs, checkpoint);
     }
-
-    // /**
-    //  * Train the model with a learning rate scheduler.
-    //  * @param loader                A Dataloader containing train images.
-    //  * @param epochs                The number of epochs to train.
-    //  * @param scheduler             A function that returns a Double, learningRate, from an Integer, epoch.
-    //  */
-    // public void train(Dataloader loader, int epochs, Function<Integer, Double> scheduler) {
-    //     runTraining(loader, epochs, scheduler, null);
-    // }
 
     private void runTraining(Dataloader loader, int epochs,
         ModelCheckpoint checkpoint) {
@@ -800,6 +738,33 @@ public class Sequential{
                 }
             }
         }
+        if (optimizer != null) {
+            JMatrix[] weights = optimizer.getWeights();
+            for (JMatrix weight : weights) {
+                BufferedWriter writer = null;
+                try {
+                    try{
+                        writer = new BufferedWriter(
+                                new FileWriter(path + "/" + optimizer.getName() + "/"
+                                 + weight.getName() + ".txt", false));
+                    }catch(Exception e1){
+                        Path dir = Paths.get(path + "/" + optimizer.getName());
+                        Files.createDirectories(dir);
+                        writer = new BufferedWriter(
+                            new FileWriter( path + "/" + optimizer.getName() + "/"
+                            + weight.getName() + ".txt", false));
+                    }
+                    for (int i = 0; i < weight.size(); i++) {
+                        writer.write(String.valueOf(weight.get(i)) + ",");
+                    }
+                    writer.flush();
+                    writer.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+            
         if (printReport) {
             System.out.println("Weights saved to " + path);
         }
@@ -823,7 +788,6 @@ public class Sequential{
                             weight.getName() + ".txt"))) {
                         String line; 
                         String[] split = null;
-                        // Read one line
                         while((line = br.readLine()) != null){
                             split = line.split(",");
                         }
@@ -835,16 +799,33 @@ public class Sequential{
                         e.printStackTrace();
                     }
                 }
-
+            }
+        }
+        if (optimizer != null) {
+            JMatrix[] weights = optimizer.getWeights();
+            for (JMatrix weight : weights) {
+                try (BufferedReader br = new BufferedReader(
+                    new FileReader(path + "/" + 
+                        optimizer.getName() + "/" + 
+                        weight.getName() + ".txt"))) {
+                    String line; 
+                    String[] split = null;
+                    while((line = br.readLine()) != null){
+                        split = line.split(",");
+                    }
+                    int x = 0;
+                    for (String s : split) {
+                        weight.set(x++, Float.parseFloat(s));
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
     }
 
-    private boolean isFlat(jflow.model.Layer layer) {
-        if (layer instanceof Dense) {
-            return true;
-        }
-        return false;
+    private boolean isFlat(Layer layer) {
+        return layer instanceof Dense || layer instanceof Embedding;
     }
 
     /**
@@ -861,8 +842,14 @@ public class Sequential{
         // Run an empty JMatrix through the model
         if (isFlat(first)) {
             // Run a flat batch of 1 through the model
-            JMatrix empty = new JMatrix(1, first.getInputShape()[0], 1, 1);
-            forward(empty, false);
+            if (first instanceof Embedding) {
+                JMatrix empty = new JMatrix(1, 1, 1, 1);
+                forward(empty, false);
+            } else {
+                // Dense input shape is fixed
+                JMatrix empty = new JMatrix(1, first.getInputShape()[0], 1, 1);
+                forward(empty, false);
+            }
         } else {
             // Run a 4D batch of 1 through the model
             JMatrix empty = new JMatrix(1, first.getInputShape()[0], 
