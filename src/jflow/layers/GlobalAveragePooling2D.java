@@ -40,7 +40,7 @@ public class GlobalAveragePooling2D extends ShapeAlteringLayer{
             }
         });
 
-        return trackOutput(averaged);
+        return trackOutput(averaged, training);
     }
 
     @Override

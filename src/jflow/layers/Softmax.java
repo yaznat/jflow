@@ -36,7 +36,7 @@ public class Softmax extends ShapePreservingLayer{
                 Z.set(j * cols + i, (float)Math.exp(A.get(j * cols + i) - max) / sum);
             }
         });
-        return trackOutput(Z);
+        return trackOutput(Z, training);
     }
 
     @Override

@@ -106,7 +106,7 @@ public class LayerNorm extends TrainableLayer {
             }
         });
 
-        return trackOutput(output);
+        return trackOutput(output, training);
     }
 
     @Override

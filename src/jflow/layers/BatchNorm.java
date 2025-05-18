@@ -62,7 +62,9 @@ public class BatchNorm extends TrainableLayer {
     }
 
     public JMatrix forward(JMatrix input, boolean training) {
-        this.input = input;
+        if (training) {
+            this.input = input;
+        }
         
         if (getPreviousShapeInfluencer() instanceof Dense) {
             input = input.transpose2D();
@@ -96,7 +98,7 @@ public class BatchNorm extends TrainableLayer {
         // Scale and shift
         output = scaleAndShift(xHat, gamma, beta);
         
-        return output;
+        return trackOutput(output, training);
     }
     
     /*
@@ -249,10 +251,6 @@ public class BatchNorm extends TrainableLayer {
         int width = input.width();
         int spatialSize = height * width;
         int elements = batchSize * spatialSize;
-        
-        // Reset accumulated gradients
-        dxHatSum.fill(0);
-        dxHatXhatSum.fill(0);
         
         // Calculate dGamma and dBeta
         IntStream.range(0, channels).parallel().forEach(c -> {

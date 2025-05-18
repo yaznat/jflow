@@ -32,7 +32,7 @@ public class Reshape extends ShapeAlteringLayer{
             input = input.transpose2D();
         }
 
-        return trackOutput(input.reshape(input.length(), newChannels, newHeight, newWidth));
+        return trackOutput(input.reshape(input.length(), newChannels, newHeight, newWidth), training);
     }
 
     

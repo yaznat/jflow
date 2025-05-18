@@ -105,7 +105,9 @@ public class Dense extends TrainableLayer {
             input = input.transpose2D();
         }
         // Store lastInput for backpropagation
-        lastInput = input;
+        if (training) {
+            lastInput = input;
+        }
 
         // Calculate forward output
         JMatrix A = weights.matmul(input, true); // scaled
@@ -115,7 +117,7 @@ public class Dense extends TrainableLayer {
         }
        
 
-        return trackOutput(A);
+        return trackOutput(A, training);
     }
     @Override
     public JMatrix backward(JMatrix gradient) {

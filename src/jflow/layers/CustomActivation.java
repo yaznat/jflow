@@ -21,7 +21,7 @@ public class CustomActivation extends ShapePreservingLayer{
     public JMatrix forward(JMatrix input, boolean training) {
         JMatrix output = activation.apply(input);
 
-        return trackOutput(output);
+        return trackOutput(output, training);
     }
 
     @Override

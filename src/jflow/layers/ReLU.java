@@ -19,7 +19,7 @@ public class ReLU extends ShapePreservingLayer{
             Z.set(i, (input.get(i) > 0) ? input.get(i) : 0);
         });
 
-        return trackOutput(Z);
+        return trackOutput(Z, training);
     }
 
     @Override

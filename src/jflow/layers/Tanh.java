@@ -16,7 +16,7 @@ public class Tanh extends ShapePreservingLayer{
         IntStream.range(0, size).parallel().forEach(i -> {
             output.set(i, Math.tanh(input.get(i)));
         });
-        return trackOutput(output);
+        return trackOutput(output, training);
     }
 
     @Override

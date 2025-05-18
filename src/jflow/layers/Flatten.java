@@ -13,7 +13,7 @@ public class Flatten extends ShapeAlteringLayer{
     public JMatrix forward(JMatrix input, boolean training) {
         JMatrix output = input.reshape(input.length(), input.channels() * 
             input.height() * input.width(), 1, 1);
-        return trackOutput(output);
+        return trackOutput(output, training);
     }
 
     @Override

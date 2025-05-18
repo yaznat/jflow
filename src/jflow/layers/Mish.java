@@ -5,6 +5,7 @@ import jflow.data.JMatrix;
 import jflow.layers.templates.ShapePreservingLayer;
 
 public class Mish extends ShapePreservingLayer {
+    private JMatrix lastInput;
     
     public Mish() {
         super("mish");
@@ -12,6 +13,9 @@ public class Mish extends ShapePreservingLayer {
     
     @Override
     public JMatrix forward(JMatrix input, boolean training) {
+        if (training) {
+            lastInput = input;
+        }
         int size = input.size();
         JMatrix output = input.zerosLike();
         
@@ -21,13 +25,13 @@ public class Mish extends ShapePreservingLayer {
             output.set(i, x * Math.tanh(softplus));
         });
         
-        return trackOutput(output);
+        return trackOutput(output, training);
     }
     
     @Override
     public JMatrix backward(JMatrix gradient) {
         int size = gradient.size();
-        JMatrix input = getPreviousLayer().getOutput(); // Get original input x
+        JMatrix input = lastInput; // Use original input x
         JMatrix dZ = input.zerosLike();
         
         IntStream.range(0, size).parallel().forEach(i -> {

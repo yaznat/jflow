@@ -49,7 +49,7 @@ public class MaxPool2D extends ShapeAlteringLayer {
             }
         });
 
-        return trackOutput(output); 
+        return trackOutput(output, training); 
     }
 
     @Override

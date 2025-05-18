@@ -98,7 +98,9 @@ public class Conv2D extends TrainableLayer {
 
     @Override
     public JMatrix forward(JMatrix input, boolean training) {
-        lastInput = input;
+        if (training) {
+            lastInput = input;
+        }
         this.inputHeight = input.height();
         this.inputWidth = input.width();
         this.numImages = input.length();
@@ -142,7 +144,7 @@ public class Conv2D extends TrainableLayer {
             });
         }
        
-        return trackOutput(A);
+        return trackOutput(A, training);
     }
 
     @Override

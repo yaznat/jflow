@@ -5,13 +5,16 @@ import jflow.data.JMatrix;
 import jflow.layers.templates.ShapePreservingLayer;
 
 public class Swish extends ShapePreservingLayer {
-    
+    private JMatrix lastInput;
     public Swish() {
         super("swish");
     }
     
     @Override
     public JMatrix forward(JMatrix input, boolean training) {
+        if (training) {
+            lastInput = input;
+        }
         int size = input.size();
         JMatrix output = input.zerosLike();
         
@@ -21,13 +24,13 @@ public class Swish extends ShapePreservingLayer {
             output.set(i, x * sigmoid);
         });
         
-        return trackOutput(output);
+        return trackOutput(output, training);
     }
     
     @Override
     public JMatrix backward(JMatrix gradient) {
         int size = gradient.size();
-        JMatrix input = getPreviousLayer().getOutput(); // Get original input
+        JMatrix input = lastInput; // Use original input x
         JMatrix dZ = input.zerosLike();
         
         IntStream.range(0, size).parallel().forEach(i -> {

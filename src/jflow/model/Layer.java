@@ -51,8 +51,13 @@ public abstract class Layer {
         return gradient;
     }
 
-    protected JMatrix trackOutput(JMatrix output) {
-        this.output = output;
+    protected JMatrix trackOutput(JMatrix output, boolean training) {
+        if (training) {
+            this.output = output;
+        } else {
+            // Ensure memory is freed
+            this.output = null;
+        }
         return output;
     }
     

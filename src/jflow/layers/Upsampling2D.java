@@ -49,7 +49,7 @@ public class Upsampling2D extends ShapeAlteringLayer{
             }
         });
 
-        return trackOutput(output);
+        return trackOutput(output, training);
     }
 
     @Override

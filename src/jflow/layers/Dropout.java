@@ -1,5 +1,6 @@
 package jflow.layers;
 
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
 
 import jflow.data.JMatrix;
@@ -19,7 +20,8 @@ public class Dropout extends ShapePreservingLayer{
         dropoutMask = new JMatrix(inputSize, outputSize, 1, 1);
         IntStream.range(0, inputSize).parallel().forEach(i -> {
             for (int j = 0; j < outputSize; j++) {
-                dropoutMask.set(i * outputSize + j, (Math.random() < dropoutRate) ? 0 : 1);
+                dropoutMask.set(i * outputSize + j, (
+                    ThreadLocalRandom.current().nextDouble() < dropoutRate) ? 0 : 1);
             }
         });
     }
@@ -48,7 +50,7 @@ public class Dropout extends ShapePreservingLayer{
             newDropoutMask(input.length(), input.channels());
         }
 
-        return trackOutput(applyMask(input, training));
+        return trackOutput(applyMask(input, training), training);
     }
     @Override
     public JMatrix backward(JMatrix input) {

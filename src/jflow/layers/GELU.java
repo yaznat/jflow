@@ -5,9 +5,10 @@ import jflow.data.JMatrix;
 import jflow.layers.templates.ShapePreservingLayer;
 
 /**
- * GELU (Gaussian Error Linear Unit) activation function
+ * GELU (Gaussian Error Linear Unit) activation function.
  */
 public class GELU extends ShapePreservingLayer {
+    private JMatrix lastInput;
     
     public GELU() {
         super("gelu");
@@ -16,6 +17,7 @@ public class GELU extends ShapePreservingLayer {
     
     @Override
     public JMatrix forward(JMatrix input, boolean training) {
+        lastInput = input;
         int size = input.size();
         JMatrix output = input.zerosLike();
         
@@ -30,13 +32,13 @@ public class GELU extends ShapePreservingLayer {
             output.set(i, geluValue);
         });
         
-        return trackOutput(output);
+        return trackOutput(output, training);
     }
     
     @Override
     public JMatrix backward(JMatrix gradient) {
         int size = gradient.size();
-        JMatrix input = getPreviousLayer().getOutput(); // Get original input x
+        JMatrix input = lastInput; // Use original input x
         JMatrix dZ = input.zerosLike();
         
         IntStream.range(0, size).parallel().forEach(i -> {

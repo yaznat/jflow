@@ -21,7 +21,7 @@ public class Sigmoid extends ShapePreservingLayer{
             Z.set(i, 1.0 / (1.0 + Math.exp(-input.get(i))));
         });
 
-        return trackOutput(Z);
+        return trackOutput(Z, training);
     }
 
     @Override

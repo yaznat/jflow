@@ -23,7 +23,7 @@ public class LeakyReLU extends ShapePreservingLayer{
             Z.set(i, (input.get(i) > 0) ? input.get(i) : alpha * input.get(i));
         });
 
-        return trackOutput(Z);
+        return trackOutput(Z, training);
     }
 
     @Override
