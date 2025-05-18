@@ -41,7 +41,7 @@ public class CNN {
          * Declare labels to use a train labels reference csv.
          * We only want cars and trucks.
          */ 
-        String[] labelsToKeep = {"cat","dog"};
+        String[] labelsToKeep = {"automobile","truck"};
 
         loader.loadFromDirectory("datasets/cifar10", labelsToKeep, 
             "datasets/CifarTrainLabels.csv", 1.0, false);
@@ -94,19 +94,18 @@ public class CNN {
 
             .summary();
 
-
-    // Load trained weights
-        // model.loadWeights("saved_weights/Cifar10 CNN Cars vs Trucks");
-
     // Try out different optimizers
         // model.compile(SGD(0.01, 0.9, true));
         // model.compile(AdaGrad(0.01));
         // model.compile(RMSprop(0.001, 0.9, 1e-8, 0.9));
         model.compile(Adam(0.001));
 
+    // Load trained weights
+        // model.loadWeights("saved_weights/Cifar10 CNN Cars vs Trucks");
+
         // Train the model
         model.train(loader, 30, ModelCheckpoint(
-            "val_loss", "saved_weights/Cifar10 CNN Cats vs Dogs"));
+            "val_loss", "saved_weights/Cifar10 CNN Cars vs Trucks"));
 
         // Evaluate the model
         int[] predictions = model.predict(loader.getTestImages());

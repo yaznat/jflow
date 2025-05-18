@@ -57,15 +57,16 @@ public class NN {
             .add(Softmax())
 
             .summary();
-        
-    // load trained weights
-        // model.loadWeights("saved_weights/MNIST NN"); 
 
     // Try out different optimizers
         // model.compile(SGD(0.1, 0.9, true));
         // model.compile(AdaGrad(0.01));
         // model.compile(RMSprop(0.001, 0.9, 1e-8, 0.9));
         model.compile(Adam(0.01));
+
+
+    // load trained weights
+        // model.loadWeights("saved_weights/MNIST NN"); 
 
         // Train the model
         model.train(loader, 10, ModelCheckpoint("val_loss", "saved_weights/MNIST NN"));
