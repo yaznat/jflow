@@ -59,7 +59,6 @@ public class Embedding extends TrainableLayer {
 
     @Override
     public JMatrix backward(JMatrix dOutput) {
-        gradEmbeddings.fill(0);
 
         int batch = dOutput.shape()[0];
         int seqLen = dOutput.shape()[1];
