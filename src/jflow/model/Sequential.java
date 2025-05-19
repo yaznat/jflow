@@ -739,6 +739,29 @@ public class Sequential{
             }
         }
         if (optimizer != null) {
+            // Save Adam time steps
+            if (optimizer instanceof Adam) {
+                BufferedWriter writer = null;
+                try {
+                    try{
+                        writer = new BufferedWriter(
+                                new FileWriter(path + "/" + optimizer.getName() + "/"
+                                 + "timesteps.txt", false));
+                    }catch(Exception e1){
+                        Path dir = Paths.get(path + "/" + optimizer.getName());
+                        Files.createDirectories(dir);
+                        writer = new BufferedWriter(
+                            new FileWriter( path + "/" + optimizer.getName() + "/"
+                            + "timesteps.txt", false));
+                    }
+                    writer.write(String.valueOf(((Adam)optimizer).getTimeSteps()));
+                    writer.flush();
+                    writer.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            // Save optimizer weights
             JMatrix[] weights = optimizer.getWeights();
             for (JMatrix weight : weights) {
                 BufferedWriter writer = null;
@@ -790,6 +813,7 @@ public class Sequential{
                         String[] split = null;
                         while((line = br.readLine()) != null){
                             split = line.split(",");
+                            break;
                         }
                         int x = 0;
                         for (String s : split) {
@@ -802,6 +826,23 @@ public class Sequential{
             }
         }
         if (optimizer != null) {
+            // Load Adam time steps
+            if (optimizer instanceof Adam) {
+                try (BufferedReader br = new BufferedReader(
+                    new FileReader(path + "/" + 
+                        optimizer.getName() + "/" + 
+                        "timesteps.txt"))) {
+                    String line; 
+                    while((line = br.readLine()) != null){
+                        ((Adam)optimizer).setTimeSteps(Integer.parseInt(line));
+                        break;
+                    }
+                    
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            // Load optimizer weights
             JMatrix[] weights = optimizer.getWeights();
             for (JMatrix weight : weights) {
                 try (BufferedReader br = new BufferedReader(
@@ -812,10 +853,11 @@ public class Sequential{
                     String[] split = null;
                     while((line = br.readLine()) != null){
                         split = line.split(",");
+                        break;
                     }
                     int x = 0;
                     for (String s : split) {
-                        weight.set(x++, Float.parseFloat(s));
+                        weight.set(x++, Float.parseFloat(s)); // java.lang.ArrayIndexOutOfBoundsException: Index 64 out of bounds for length 64
                     }
                 } catch (IOException e) {
                     e.printStackTrace();

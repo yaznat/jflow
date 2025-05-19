@@ -1,15 +1,18 @@
 package jflow.model;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import jflow.data.JMatrix;
 import jflow.layers.templates.TrainableLayer;
 
 public abstract class Optimizer {
-    private HashMap<TrainableLayer, JMatrix[]> layerMoments = new HashMap<>();
+    // LinkedHashMap preserves retrieval order, which is necessary
+    private LinkedHashMap<TrainableLayer, JMatrix[]> layerMoments = new LinkedHashMap<>();
     private HashMap<String, TrainableLayer> layerID = new HashMap<>();
     private String name;
+    private double clipNorm = -1;
 
     protected Optimizer(String name){
         this.name = name;
@@ -17,6 +20,23 @@ public abstract class Optimizer {
     
 
     public abstract void apply(HashMap<String, JMatrix[]> layerGradients);
+
+    /**
+     * Set the clip norm of this optimizer. 
+     * @param clipNorm a positive number, since clipping is an absolute value function.
+     */
+    public Optimizer clipNorm(double clipNorm) {
+        this.clipNorm = Math.abs(clipNorm);
+        return this;
+    }
+
+    protected double getClipNorm() {
+        return clipNorm;
+    }
+
+    protected boolean useClipping() {
+        return clipNorm != -1;
+    }
 
     protected abstract void initializeLayer(TrainableLayer layer);
 
