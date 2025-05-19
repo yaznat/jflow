@@ -240,12 +240,12 @@ public class Builder {
 
     /**
      * The Adam Optimizer.
+     * @param learningRate              The learning rate for parameter updates.
      * @param beta1                     The momentum coefficient of the first moment.
      * @param beta2                     The momentum coefficient of the second moment.
-     * @param learningRate              The learning rate for parameter updates.
      */
-    public static Optimizer Adam(double beta1, double beta2, double learningRate) {
-        return new Adam(beta1, beta2, learningRate);
+    public static Optimizer Adam(double learningRate, double beta1, double beta2) {
+        return new Adam(learningRate, beta1, beta2);
     }
 
     /**
