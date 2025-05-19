@@ -1,5 +1,7 @@
 package jflow.data;
 import java.util.Random;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.IntStream;
 
 
@@ -9,6 +11,25 @@ public class JMatrix {
     private int length, channels, height, width;
     private Random rand = new Random();
     private String name = null;
+    /*
+     * Cut-off size for matrices passed to matmul(). 
+     * Matrices with all dimensions under the cut-off
+     * size will be handled with simpleMatmul()
+     */ 
+    private static int cutoffSize = -1;
+    // Cache-blocking sizes tuned for modern CPUs
+    private static final int BLOCK_SIZE_M = 128;
+    private static final int BLOCK_SIZE_N = 128;
+    private static final int BLOCK_SIZE_K = 512;
+
+    
+
+
+    private static final ForkJoinPool THREAD_POOL = new ForkJoinPool(
+            Math.max(1, Runtime.getRuntime().availableProcessors() * 2), 
+            ForkJoinPool.defaultForkJoinWorkerThreadFactory,
+            null, true);
+    
 
     /**
      * Initialize a new JMatrix with default values of zero.
@@ -18,11 +39,8 @@ public class JMatrix {
      * @param width                 The width dimension.
      */
     public JMatrix(int length, int channels, int height, int width) {
-        matrix = new float[length * channels * height * width];
-        this.length = length;
-        this.channels = channels;
-        this.height = height;
-        this.width = width;
+        this(new float[length * channels * height * width], 
+            length, channels, height, width);
     }
 
      /**
@@ -31,14 +49,11 @@ public class JMatrix {
      * @throws IllegalArgumentException if the length of shape is not four.
      */
     public JMatrix(int[] shape) {
-        this.length = shape[0];
-        this.channels = shape[1];
-        this.height = shape[2];
-        this.width = shape[3];
+        this(shape[0], shape[1], shape[2], shape[3]);
+
         if (shape.length != 4) {
-            throw new IllegalArgumentException("Invalid shape. Only 4 is permitted.");
+            throw new IllegalArgumentException("Invalid shape. Only length of 4 is permitted.");
         }
-        matrix = new float[length * channels * height * width];
     }
 
     /**
@@ -49,11 +64,17 @@ public class JMatrix {
      * @param width                 The width dimension.
      */
     public JMatrix(float[] matrix, int length, int channels, int height, int width) {
+        // all constructors point to this one
         this.matrix = matrix;
         this.length = length;
         this.channels = channels;
         this.height = height;
         this.width = width;
+
+        if (cutoffSize == -1) {
+            // TODO: calibrate cut-off size
+            cutoffSize = 1024;
+        } 
     }
 
     /**
@@ -65,11 +86,7 @@ public class JMatrix {
      * @param name                  The name to assign to this JMatrix.
      */
     public JMatrix(int length, int channels, int height, int width, String name) {
-        matrix = new float[length * channels * height * width];
-        this.length = length;
-        this.channels = channels;
-        this.height = height;
-        this.width = width;
+        this(length, channels, height, width);
         this.name = name;
     }
 
@@ -158,10 +175,12 @@ public class JMatrix {
     /**
      * Print the shape of the JMatrix in the format (length, channels, height, width).
      */
-    public void printShape() {
+    public JMatrix printShape() {
         System.out.println("(" + length + "," + channels + 
             "," + height + "," + width + ")");
+        return this;
     }
+
 
     /**
      * Set the wrapped array to a new value. Resize not allowed.
@@ -199,6 +218,57 @@ public class JMatrix {
         this.channels = shape[1];
         this.height = shape[2];
         this.width = shape[3];
+    }
+    
+    /**
+     * Copy a batch worth of elements into the proper location.
+     * @param batchIndex the starting index along the batch dimension.
+     * @param values a JMatrix of values to copy into this JMatrix.
+     * @throws IllegalArgumentException if the size of values is unequal 
+     * to the size of a channels * height * width slice of this JMatrix.
+     */
+    public void arrayCopyBatch(int batchIndex, JMatrix values) {
+        int itemSize = channels * height * width;
+        float[] internalValues = values.getMatrix();
+        if (internalValues.length != itemSize) {
+            throw new IllegalArgumentException("Unexpected length: " + values.length + 
+                ". Expected: " + itemSize);
+        }
+        IntStream.range(0, itemSize)
+            .parallel().forEach(i -> {
+            matrix[batchIndex * itemSize + i] = internalValues[i];
+        });
+    }
+
+    /**
+     * Get all values up until a given index.
+     * @param index the exclusive end index.
+     *
+     */
+    public float[] to(int index) {
+        float[] values = new float[index];
+
+        IntStream.range(0, index).parallel().forEach(i -> {
+            values[i] = access(i);
+        });
+
+        return values;
+    }
+
+    /**
+     * Get all values starting at a given index.
+     * @param index the inclusive start index.
+     *
+     */
+    public float[] from(int index) {
+        int returnSize = size() - index;
+        float[] values = new float[returnSize];
+
+        IntStream.range(0, index).parallel().forEach(i -> {
+            values[i] = access(index + i);
+        });
+
+        return values;
     }
 
     /**
@@ -253,6 +323,24 @@ public class JMatrix {
             width + channelIndex * height * width + 
             heightIndex * width + widthIndex);
     }
+
+
+    /**
+     * Copies a slice of this JMatrix
+     * @param startIdx                  the 1D start index.
+     * @param endIdx                    the 1D end index.
+     * @return                          a JMatrix containing the sliced values with shape (length, 1, 1, 1).
+     */
+    public JMatrix slice(int startIdx, int endIdx) {
+        int length = endIdx - startIdx;
+        float[] result = new float[length];
+
+        IntStream.range(0, length).parallel().forEach(i -> {
+            result[i] = matrix[i + startIdx];
+        });
+
+        return new JMatrix(result, length, 1, 1, 1);
+    }
     /**
      * Get a channels * height * width element.
      * @param lengthIndex The index along the batch dimension.
@@ -283,10 +371,10 @@ public class JMatrix {
      * @param lengthIndex The index along the batch dimension.
      * @param channelIndex The index along the channel dimension.
      */
-    public double[] get(int lengthIndex, int channelIndex) {
+    public float[] get(int lengthIndex, int channelIndex) {
         int sliceSize = height * width;
         int startIdx = lengthIndex * channels * sliceSize + channelIndex * sliceSize;
-        double[] slice = new double[sliceSize];
+        float[] slice = new float[sliceSize];
         System.arraycopy(matrix, startIdx, slice, 0, sliceSize);
         return slice;
     }
@@ -382,7 +470,6 @@ public class JMatrix {
         heightIndex * width + widthIndex] = (float)value;
     }
 
-
 // Statistics
 
     /**
@@ -425,44 +512,35 @@ public class JMatrix {
      * @return                  An array containing the indexes of max values along the given axis
      */
     public int[] argmax(int axis) {
-        int[] positions = new int[0];
-        int itemSize = 0; 
-        int numRows = 0;
-        switch (axis) {
-            case 0: 
-                // argmax of each channel * height * width
-                itemSize = channels * height * width;
-                numRows = length;
-                positions = new int[numRows];
-                break;
-            case 1:
-                // argmax of each height * width
-                itemSize = height * width;
-                numRows = length * channels;
-                positions = new int[numRows];
-                break;
-            case 2:
-                // argmax of each width
-                itemSize = width;
-                numRows = length * channels * height;
-                positions = new int[numRows];
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid axis: " + axis);
+        if (axis < 0 || axis > 3) {
+            throw new IllegalArgumentException("Axis must be between 0 and 3");
         }
-        // Find max positions
-        for (int i = 0; i < numRows; i++) {
-            double maxValue = Double.NEGATIVE_INFINITY;
-            int maxIndex = 0;
-            for (int j = 0; j < itemSize; j++) {
-                if (access(i * itemSize + j) > maxValue) {
-                    maxValue = access(i * itemSize + j);
-                    maxIndex = j;
+    
+        int[] dimensions = new int[]{length, channels, height, width};
+        int[] strides = new int[]{channels * height * width, height * width, width, 1};
+    
+        int axisSize = dimensions[axis];
+        int resultSize = matrix.length / axisSize;
+        int[] result = new int[resultSize];
+    
+        IntStream.range(0, resultSize).parallel().forEach(opIndex -> {
+            int baseOffset = indexHelper(opIndex, axis, dimensions, strides);
+    
+            float maxVal = Float.NEGATIVE_INFINITY;
+            int maxIdx = 0;
+    
+            for (int i = 0; i < axisSize; i++) {
+                int offset = baseOffset + i * strides[axis];
+                if (matrix[offset] > maxVal) {
+                    maxVal = matrix[offset];
+                    maxIdx = i;
                 }
             }
-            positions[i] = maxIndex;
-        }
-        return positions;
+    
+            result[opIndex] = maxIdx;
+        });
+    
+        return result;
     }
     /**
      * The mean of all values in the JMatrix.
@@ -489,6 +567,80 @@ public class JMatrix {
         
         }
         return sum;
+    }
+
+    /**
+     * Sums the elements of the matrix along a specified axis.
+     * 
+     * @param axis The axis along which to perform the sum (0=batch, 1=channel, 2=height, 3=width)
+     * @return A new JMatrix with the summed values, with dimension 1 in the summed axis
+     */
+    public JMatrix sum(int axis) {
+        int[] shape = new int[]{length, channels, height, width};
+        
+        // Create a new matrix with the summed dimension set to 1
+        shape[axis] = 1;
+        JMatrix result = new JMatrix(shape[0], shape[1], shape[2], shape[3]);
+        
+        // Perform the sum based on the specified axis
+        switch (axis) {
+            case 0: // Sum across batch dimension
+                for (int n = 0; n < length; n++) {
+                    for (int c = 0; c < channels; c++) {
+                        for (int h = 0; h < height; h++) {
+                            for (int w = 0; w < width; w++) {
+                                result.set(0, c, h, w, result.get(0, c, h, w) + 
+                                    get(n, c, h, w));
+                            }
+                        }
+                    }
+                }
+                break;
+                
+            case 1: // Sum across channel dimension
+                for (int n = 0; n < length; n++) {
+                    for (int c = 0; c < channels; c++) {
+                        for (int h = 0; h < height; h++) {
+                            for (int w = 0; w < width; w++) {
+                                result.set(n, 0, h, w, result.get(n, 0, h, w) + 
+                                    get(n, c, h, w));
+                            }
+                        }
+                    }
+                }
+                break;
+                
+            case 2: // Sum across height dimension
+                for (int n = 0; n < length; n++) {
+                    for (int c = 0; c < channels; c++) {
+                        for (int h = 0; h < height; h++) {
+                            for (int w = 0; w < width; w++) {
+                                result.set(n, c, 0, w, result.get(n, c, 0, w) + 
+                                    get(n, c, h, w));
+                            }
+                        }
+                    }
+                }
+                break;
+                
+            case 3: // Sum across width dimension
+                for (int n = 0; n < length; n++) {
+                    for (int c = 0; c < channels; c++) {
+                        for (int h = 0; h < height; h++) {
+                            for (int w = 0; w < width; w++) {
+                                result.set(n, c, h, 0, result.get(n, c, h, 0) + 
+                                get(n, c, h, w));
+                            }
+                        }
+                    }
+                }
+                break;
+                
+            default:
+                throw new IllegalArgumentException("Axis must be between 0 and 3");
+        }
+        
+        return result;
     }
    
     /**
@@ -539,6 +691,234 @@ public class JMatrix {
         }
         return count;
     }
+
+    /**
+     * Perform softmax along a given axis. Avoids overflow.
+     * @param axis the axis to apply softmax to: <p>
+     * <ul> <li> 0 = across batch dimension 
+     * <li> 1 = across channel dimension
+     * <li> 2 = across height dimension
+     * <li> 3 = across width dimension </ul>
+     * @return A new JMatrix with softmax applied along the specified axis.
+     */
+    public JMatrix softmax(int axis) {
+        if (axis < 0 || axis > 3) {
+            throw new IllegalArgumentException("Axis must be between 0 and 3");
+        }
+        
+        // Create result matrix with same dimensions
+        float[] result = new float[matrix.length];
+        
+        try {
+            THREAD_POOL.submit(() -> {
+                // Determine the sizes and strides based on dimensions
+                int[] dimensions = new int[]{length, channels, height, width};
+                int[] strides = new int[]{channels * height * width, height * width, width, 1};
+                
+                // Calculate the size of the axis to apply softmax to
+                int axisSize = dimensions[axis];
+                
+                // Calculate the number of softmax operations to perform
+                int numOperations = matrix.length / axisSize;
+                
+                // Process each softmax operation in parallel
+                IntStream.range(0, numOperations).parallel().forEach(opIndex -> {
+                    // Calculate the starting offset for this operation
+                    
+                    int baseOffset = indexHelper(opIndex, axis, dimensions, strides);
+                    
+                    // Find max value for numerical stability
+                    float maxVal = Float.NEGATIVE_INFINITY;
+                    for (int i = 0; i < axisSize; i++) {
+                        int offset = baseOffset + i * strides[axis];
+                        maxVal = Math.max(maxVal, matrix[offset]);
+                    }
+                    
+                    // Calculate sum of exponentials
+                    float sumExp = 0.0f;
+                    for (int i = 0; i < axisSize; i++) {
+                        int offset = baseOffset + i * strides[axis];
+                        sumExp += Math.exp(matrix[offset] - maxVal);
+                    }
+                    
+                    // Calculate softmax values
+                    for (int i = 0; i < axisSize; i++) {
+                        int offset = baseOffset + i * strides[axis];
+                        result[offset] = (float) Math.exp(matrix[offset] - maxVal) / sumExp;
+                    }
+                });
+            }).get();
+        } catch (Exception e) {
+            throw new RuntimeException("Error in JMatrix.Softmax(axis = " + axis + ")", e);
+        }
+        
+        return new JMatrix(result, length, channels, height, width);
+    }
+
+    /**
+     * Perform log softmax along a given axis. Avoids overflow and underflow.
+     * @param axis the axis to apply log softmax to: <p>
+     * <ul> <li> 0 = across batch dimension
+     * <li> 1 = across channel dimension
+     * <li> 2 = across height dimension
+     * <li> 3 = across width dimension </ul>
+     * @return A new JMatrix with log softmax applied along the specified axis.
+     */
+    public JMatrix logSoftmax(int axis) {
+        if (axis < 0 || axis > 3) {
+            throw new IllegalArgumentException("Axis must be between 0 and 3");
+        }
+
+        float[] result = new float[size()];
+        try {
+            THREAD_POOL.submit(() -> {
+                // Determine the sizes and strides based on dimensions
+                int[] dimensions = new int[]{length, channels, height, width};
+                int[] strides = new int[]{channels * height * width, height * width, width, 1};
+
+                // Calculate the size of the axis to apply log softmax to
+                int axisSize = dimensions[axis];
+
+                // Calculate the number of log softmax operations to perform
+                int numOperations = matrix.length / axisSize;
+
+                IntStream.range(0, numOperations).parallel().forEach(opIndex -> {
+                    // Calculate the starting offset
+                    int baseOffset = indexHelper(opIndex, axis, dimensions, strides);
+                    // Find max value for numerical stability
+                    float maxVal = Float.NEGATIVE_INFINITY;
+                    for (int i = 0; i < axisSize; i++) {
+                        int offset = baseOffset + i * strides[axis];
+                        maxVal = Math.max(maxVal, matrix[offset]);
+                    }
+                    // Calculate sum of exponentials
+                    float sumExp = 0.0f;
+                    for (int i = 0; i < axisSize; i++) {
+                        int offset = baseOffset + i * strides[axis];
+                        sumExp += Math.exp(matrix[offset] - maxVal);
+                    }
+                    // Calculate log softmax values
+                    float logSumExp = (float) Math.log(sumExp) + maxVal;
+                    for (int i = 0; i < axisSize; i++) {
+                        int offset = baseOffset + i * strides[axis];
+                        result[offset] = matrix[offset] - logSumExp;
+                    }
+                });
+            }).get();
+        } catch (Exception e) {
+            throw new RuntimeException("Error in JMatrix.LogSoftmax(axis = " + axis + ")", e);
+        }
+        return new JMatrix(result, length, channels, height, width);
+    }
+
+    // NOTE: THIS METHOD IS ADAPTED FROM CODE GENERATED BY CLAUDE.AI
+    private static int indexHelper(int opIndex, int axis, int[] dimensions, int[] strides) {
+        int[] indices = new int[4];
+        int remainingIndex = opIndex;
+        
+        for (int dim = 0; dim < 4; dim++) {
+            if (dim == axis) continue;
+            
+            // Calculate the size of all dimensions after this one (except the softmax axis)
+            int productOfLaterDims = 1;
+            for (int laterDim = dim + 1; laterDim < 4; laterDim++) {
+                if (laterDim != axis) {
+                    productOfLaterDims *= dimensions[laterDim];
+                }
+            }
+            
+            // Calculate the index for this dimension
+            indices[dim] = remainingIndex / productOfLaterDims;
+            remainingIndex %= productOfLaterDims;
+        }
+        
+        // Set the index for the softmax axis to 0
+        indices[axis] = 0;
+        
+        // Calculate the base offset
+        int baseOffset = 0;
+        for (int dim = 0; dim < 4; dim++) {
+            baseOffset += indices[dim] * strides[dim];
+        }
+        
+        return baseOffset;
+    }
+    
+    /**
+     * Creates a one-hot encoded representation of token indices.
+     * 
+     * @param indices A JMatrix containing integer token indices
+     * @param vocabSize The size of the vocabulary (number of possible token values)
+     * @return A new JMatrix with one-hot encoding
+     */
+    public static JMatrix oneHot(JMatrix indices, int vocabSize) {
+        int batchSize = indices.shape()[0];
+        int seqLen = indices.shape()[1];
+        
+        JMatrix oneHotMatrix = new JMatrix(batchSize, seqLen, vocabSize, 1);
+        
+        // Fill in the one-hot encoded values
+        for (int batch = 0; batch < batchSize; batch++) {
+            for (int seq = 0; seq < seqLen; seq++) {
+                // Get the token index at this position
+                int tokenIndex = (int)indices.get(batch, seq, 0, 0);
+                
+                // Set the corresponding position to 1.0 if the token index is valid
+                if (tokenIndex >= 0 && tokenIndex < vocabSize) {
+                    oneHotMatrix.set(batch, seq, tokenIndex, 0, 1.0);
+                }
+            }
+        }
+        
+        return oneHotMatrix;
+    }
+
+    /**
+     * Create a JMatrix with random values in the range [0,1]
+     * @param length                        the N dimension of the JMatrix.
+     * @param channels                      the channel dimension of the JMatrix.
+     * @param height                        the height dimension of the JMatrix.
+     * @param width                         the width dimension of the JMatrix.
+     * 
+     * @return                              a new JMatrix with the specified dimensions 
+     * and random values in the range [0,1].
+     * 
+     */
+    public static JMatrix randn(int length, int channels, int height, int width) {
+        int size = length * channels * height * width;
+
+        float[] noise = new float[size];
+        IntStream.range(0, size).parallel().forEach(i -> {
+            noise[i] = (float)ThreadLocalRandom.current().nextDouble();
+        });
+
+        return new JMatrix(noise, length, channels, height, width);
+    }
+
+    /**
+     * Generates a position ID matrix corresponding to the input token ID matrix.
+     *
+     * For each token in the input tokenIDs matrix, this function assigns a position index (0 to seqLen - 1)
+     * along the sequence dimension. The output is a new JMatrix of shape [batch, seqLen, 1, 1],
+     * where each entry holds the position index of the corresponding token in the sequence.
+     *
+     * @param tokenIDs A JMatrix of shape [batch, seqLen] representing token IDs for a batch of sequences.
+     * @return A JMatrix of shape [batch, seqLen, 1, 1] where each entry contains the position index of the token.
+     */
+    public static JMatrix positionIDs(JMatrix tokenIDs) {
+        int batch = tokenIDs.shape()[0];
+        int seqLen = tokenIDs.shape()[1];
+        JMatrix positions = new JMatrix(batch, seqLen, 1, 1);
+    
+        for (int b = 0; b < batch; b++) {
+            for (int t = 0; t < seqLen; t++) {
+                positions.set(b, t, 0, 0, t);
+            }
+        }
+    
+        return positions;
+    }
+    
 
     /**
      * Scale values in the JMatrix from [0, n] to [0, 1].
@@ -602,9 +982,123 @@ public class JMatrix {
             }
         });
 
-
         // Assign all features to channels for simplicity
         return new JMatrix(rotated, newHeight, newWidth, 1, 1);
+    }
+
+    /**
+     * Tranpose the matrix by rearranging dimension according to a particular order
+     * @param axis1 The dimension to use as the first dimension (0=N, 1=C, 2=H, 3=W)
+     * @param axis2 The dimension to use as the second dimension (0=N, 1=C, 2=H, 3=W)
+     * @param axis3 The dimension to use as the third dimension (0=N, 1=C, 2=H, 3=W)
+     * @param axis4 The dimension to use as the fourth dimension (0=N, 1=C, 2=H, 3=W)
+     */
+    public JMatrix transpose(int axis1, int axis2, int axis3, int axis4) {
+        // Check input values
+        int[] axes = {axis1, axis2, axis3, axis4};
+        boolean[] used = new boolean[4];
+        
+        for (int axis : axes) {
+            if (axis < 0 || axis > 3) {
+                throw new IllegalArgumentException("Axis values must be between 0 and 3 inclusive");
+            }
+            if (used[axis]) {
+                throw new IllegalArgumentException("Axis values must be a permutation of 0, 1, 2, 3");
+            }
+            used[axis] = true;
+        }
+        
+        int[] dims = {length, channels, height, width};
+        
+        // Calculate new dimensions after transposition
+        int newLength = dims[axis1];
+        int newChannels = dims[axis2];
+        int newHeight = dims[axis3];
+        int newWidth = dims[axis4];
+        
+        // Output array
+        float[] transposed = new float[size()];
+        
+        // Calculate strides for the original array
+        int[] originalStrides = new int[4];
+        originalStrides[3] = 1;  // W dimension (innermost)
+        originalStrides[2] = width;  // H dimension
+        originalStrides[1] = height * width;  // C dimension
+        originalStrides[0] = channels * height * width;  // N dimension (outermost)
+        
+        // Calculate new strides based on the new dimensions
+        int[] newStrides = new int[4];
+        newStrides[3] = 1;
+        newStrides[2] = newWidth;
+        newStrides[1] = newHeight * newWidth;
+        newStrides[0] = newChannels * newHeight * newWidth;
+        
+        IntStream.range(0, length).parallel().forEach(n -> {
+            for (int c = 0; c < channels; c++) {
+                for (int h = 0; h < height; h++) {
+                    for (int w = 0; w < width; w++) {
+                        // Original coordinates
+                        int[] coords = {n, c, h, w};
+                        
+                        // Calculate original index
+                        int originalIndex = n * originalStrides[0] + 
+                                           c * originalStrides[1] + 
+                                           h * originalStrides[2] + 
+                                           w * originalStrides[3];
+                        
+                        // Calculate new coordinates after transposition
+                        int newN = coords[axes[0]];
+                        int newC = coords[axes[1]];
+                        int newH = coords[axes[2]];
+                        int newW = coords[axes[3]];
+                        
+                        // Calculate new index
+                        int newIndex = newN * newStrides[0] + 
+                                      newC * newStrides[1] + 
+                                      newH * newStrides[2] + 
+                                      newW * newStrides[3];
+                        
+                        // Copy the value
+                        transposed[newIndex] = access(originalIndex);
+                    }
+                }
+            }
+        });
+        
+        return new JMatrix(transposed, newLength, newChannels, newHeight, newWidth);
+    }
+
+    /**
+     * Rotate every height * width * channels item by 90 degrees for 3D use cases.
+     * @return A new JMatrix with the changes applied.
+     */
+    public JMatrix transpose3D() {
+        int numBatches = length;     
+        int oldC = channels;         
+        int oldH = height;           
+        int oldW = width;           
+    
+        int newH = oldH * oldW; // Flatten spatial dimensions
+        int newW = oldC; // Channels become features
+        float[] transposed = new float[size()]; 
+    
+        int oldPerBatch = oldC * oldH * oldW;
+        int newPerBatch = newH * newW;
+    
+        IntStream.range(0, numBatches).parallel().forEach(batch -> {
+            for (int c = 0; c < oldC; c++) {
+                for (int h = 0; h < oldH; h++) {
+                    for (int w = 0; w < oldW; w++) {
+                        int hwIndex = h * oldW + w;
+                        int oldIndex = batch * oldPerBatch + c * oldH * oldW + h * oldW + w;
+                        int newIndex = batch * newPerBatch + hwIndex * oldC + c;
+                        transposed[newIndex] = access(oldIndex);
+                    }
+                }
+            }
+        });
+    
+        return new JMatrix(transposed, numBatches, newH, newW, 1);
     }
     /**
      * Compare the shape of two JMatrixes.
@@ -656,46 +1150,118 @@ public class JMatrix {
     }
 
     /**
-     * Perform matrix multiplication with another JMatrix for 2D use cases.
-     * @param secondMatrix             The second JMatrix to perform matrix multiplication with.
-     * @param scale                    Whether or not to scale values by 1 / rows.
-     * @return                         A new JMatrix representing the dot product.
+     * Perform matrix multiplication with another JMatrix for 2D use cases. <p>
+     * This function treats data as 2D tensors where:
+     * <p> - First dimension: rows (N)
+     * <p> - Second dimension: columns (C * H * W)
+     * @param secondMatrix The second JMatrix to perform matrix multiplication with.
+     * @param scale Whether or not to scale values by 1 / rows.
+     * @return A new JMatrix representing the dot product.
      */
+
     public JMatrix matmul(JMatrix secondMatrix, boolean scale) {
         // Treat channels * height * width as flat
         int m = length;
         int n = secondMatrix.channels() * secondMatrix.height() * secondMatrix.width();
         int k = channels * height * width;
-
+        
         if (k != secondMatrix.length()) {
             throw new IllegalArgumentException(
-                "Matrix muliplication not possible for" + 
-                "arrays with shape: (" + m + "," + k + 
-                ") and (" + secondMatrix.length() + "," + 
+                "Matrix multiplication not possible for " +
+                "arrays with shape: (" + m + "," + k +
+                ") and (" + secondMatrix.length() + "," +
                 n + ")"
             );
         }
+        
+        float[] matrixA = matrix;
+        float[] matrixB = secondMatrix.getMatrix();
+        
+        // Use simple algorithm for small matrices
+        if (m < cutoffSize && n < cutoffSize && k < cutoffSize) {
+            return simpleMatmul(secondMatrix, scale, m, n, k);
+        }
 
+        float[] result = OptimizedMatmul.matmul(matrixA, matrixB, m, n, k, scale, 
+            BLOCK_SIZE_M, BLOCK_SIZE_N, BLOCK_SIZE_K, THREAD_POOL);
+        
+        return new JMatrix(result, m, secondMatrix.channels(), secondMatrix.height(), secondMatrix.width());
+    }
+    
+    /**
+     * Simple matrix multiplication for smaller matrices.
+     */
+    private JMatrix simpleMatmul(JMatrix secondMatrix, boolean scale, int m, int n, int k) {
         float scaleFactor = (float)(1.0f / Math.sqrt(k));
-
         float[] result = new float[m * n];
-
+        
+        float[] matrixA = matrix;
+        float[] matrixB = secondMatrix.getMatrix();
+        
         IntStream.range(0, m).parallel().forEach(i -> {
             for (int j = 0; j < n; j++) {
                 float sum = 0;
-                for (int kIndex = 0; kIndex < k; kIndex++) {
-                    sum += access(i * k + kIndex) * secondMatrix.access(kIndex * n + j);
+                
+                int rowStartA = i * k;
+                int colJ = j;
+                    
+                // Unroll by 8 for small matrices
+                for (int kIndex = 0; kIndex < k - 7; kIndex += 8) {
+                    sum += matrixA[rowStartA + kIndex] * matrixB[kIndex * n + colJ]
+                             + matrixA[rowStartA + kIndex + 1] * matrixB[(kIndex + 1) * n + colJ]
+                             + matrixA[rowStartA + kIndex + 2] * matrixB[(kIndex + 2) * n + colJ]
+                             + matrixA[rowStartA + kIndex + 3] * matrixB[(kIndex + 3) * n + colJ]
+                             + matrixA[rowStartA + kIndex + 4] * matrixB[(kIndex + 4) * n + colJ]
+                             + matrixA[rowStartA + kIndex + 5] * matrixB[(kIndex + 5) * n + colJ]
+                             + matrixA[rowStartA + kIndex + 6] * matrixB[(kIndex + 6) * n + colJ]
+                             + matrixA[rowStartA + kIndex + 7] * matrixB[(kIndex + 7) * n + colJ];
                 }
-                if (scale) {
-                    result[i * n + j] = sum * scaleFactor;
-                } else {
-                    result[i * n + j] = sum;
+                    
+                // Handle remaining elements
+                for (int kIndex = k - (k % 8); kIndex < k; kIndex++) {
+                    sum += matrixA[rowStartA + kIndex] * matrixB[kIndex * n + colJ];
                 }
+
+                result[i * n + j] = scale ? sum * scaleFactor : sum;
             }
         });
-
+        
         return new JMatrix(result, m, secondMatrix.channels(), secondMatrix.height(), secondMatrix.width());
     }
+
+    /**
+     * Perform batch matrix multiplication for 3D tensor operations.
+     * This function treats data as 3D tensors where:
+     * - First dimension: batch (N)
+     * - Second dimension: channels (C)
+     * - Third dimension: spatial size (H * W)
+     * 
+     * @param secondMatrix The second JMatrix to perform batch matrix multiplication with.
+     * @param scale Whether or not to scale values by 1 / (height * width).
+     * @return A new JMatrix representing the batch dot product.
+     */
+    public JMatrix batchMatmul(JMatrix secondMatrix, boolean scale) {
+        int batchSize = length;
+        int inputChannels = channels;
+        int flatSpatialDim = height * width;
+        
+        int outputChannels = secondMatrix.channels();
+        int outFlatSpatialDim = secondMatrix.height() * secondMatrix.width();
+        
+        if (flatSpatialDim != secondMatrix.channels()) {
+            throw new IllegalArgumentException(
+                "Batch matrix multiplication not possible for " +
+                "tensors with shapes: (" + batchSize + "," + inputChannels + "," + flatSpatialDim +
+                ") and (" + secondMatrix.length() + "," + outputChannels + "," + outFlatSpatialDim + ")"
+            );
+        }
+
+        float[] result = OptimizedMatmul.batchMatmul(matrix, secondMatrix.getMatrix(), length, 
+            inputChannels, outFlatSpatialDim, outputChannels, scale, BLOCK_SIZE_M, BLOCK_SIZE_N, BLOCK_SIZE_K, THREAD_POOL);
+
+        return new JMatrix(result, batchSize, channels, outFlatSpatialDim / secondMatrix.width(), secondMatrix.width());
+    }
+
     /**
      * Set every item x in the JMatrix to 1 / x.
      * @return A new JMatrix with the changes applied.
