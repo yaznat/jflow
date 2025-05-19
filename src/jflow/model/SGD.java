@@ -25,10 +25,29 @@ public class SGD extends Optimizer {
 
     @Override
     public void apply(HashMap<String, JMatrix[]> layerGradients) {
+        boolean needsClipping = false;
+        double clipScale = 1.0;
+        if (useClipping()) {
+            double globalGradNormSquared = 0.0;
+            for (JMatrix[] grads : layerGradients.values()) {
+                for (JMatrix grad : grads) {
+                    double frobeniusNorm = grad.frobeniusNorm();
+                    globalGradNormSquared += frobeniusNorm * frobeniusNorm;
+                }
+            }
+
+            double globalGradNorm = Math.sqrt(globalGradNormSquared);
+            
+            if (useClipping() && globalGradNorm > getClipNorm()) {
+                clipScale = getClipNorm() / (globalGradNorm + 1e-6);  // epsilon for numerical stability
+                needsClipping = true;
+            }
+        }
         for (Map.Entry<String, JMatrix[]> entry : layerGradients.entrySet()) {
             TrainableLayer layer = getLayerID().get(entry.getKey());
             JMatrix[] gradients = entry.getValue();
             JMatrix[] updates = new JMatrix[gradients.length];
+
             
             if (momentum > 0) {
                 // SGD with momentum
@@ -37,6 +56,11 @@ public class SGD extends Optimizer {
                 for (int i = 0; i < gradients.length; i++) {
                     JMatrix weightGradients = gradients[i];
                     JMatrix velocity = velocities[i];
+
+                    // Clip if needed
+                    if (needsClipping) {
+                        weightGradients.multiplyInPlace(clipScale);
+                    }
                     
                     // Update velocity (momentum term)
                     velocity.multiplyInPlace(momentum).addInPlace(weightGradients.multiply(learningRate));
@@ -52,6 +76,10 @@ public class SGD extends Optimizer {
             } else {
                 // Vanilla SGD (no momentum)
                 for (int i = 0; i < gradients.length; i++) {
+                    // Clip if needed
+                    if (needsClipping) {
+                        gradients[i].multiplyInPlace(clipScale);
+                    }
                     updates[i] = gradients[i].multiply(learningRate);
                 }
             }

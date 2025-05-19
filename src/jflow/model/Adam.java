@@ -13,7 +13,7 @@ public class Adam extends Optimizer{
     private double epsilon = 1e-8; // Small constant for numerical stability
     private int timesteps = 0;
 
-    protected Adam(double beta1, double beta2, double learningRate) {
+    protected Adam(double learningRate, double beta1, double beta2) {
         super("adam");
         this.beta1 = beta1;
         this.beta2 = beta2;
@@ -27,10 +27,35 @@ public class Adam extends Optimizer{
         this.learningRate = learningRate;
     }
 
+    protected int getTimeSteps() {
+        return timesteps;
+    }
+    protected void setTimeSteps(int timeSteps) {
+        this.timesteps = timeSteps;
+    }
 
     @Override
     public void apply(HashMap<String, JMatrix[]> layerGradients) {
         timesteps++;
+
+        boolean needsClipping = false;
+        double clipScale = 1.0;
+        if (useClipping()) {
+            double globalGradNormSquared = 0.0;
+            for (JMatrix[] grads : layerGradients.values()) {
+                for (JMatrix grad : grads) {
+                    double frobeniusNorm = grad.frobeniusNorm();
+                    globalGradNormSquared += frobeniusNorm * frobeniusNorm;
+                }
+            }
+
+            double globalGradNorm = Math.sqrt(globalGradNormSquared);
+            
+            if (useClipping() && globalGradNorm > getClipNorm()) {
+                clipScale = getClipNorm() / (globalGradNorm + 1e-6);  // epsilon for numerical stability
+                needsClipping = true;
+            }
+        }
         for (Map.Entry<String, JMatrix[]> entry : layerGradients.entrySet()) {
             TrainableLayer layer = getLayerID().get(entry.getKey());
 
@@ -46,6 +71,10 @@ public class Adam extends Optimizer{
                 JMatrix mWeights = moments[2 * i];
                 JMatrix vWeights = moments[2 * i + 1];
 
+                // Clip if needed
+                if (needsClipping) {
+                    weightGradients.multiplyInPlace(clipScale);
+                }
                 // Update first moments (momentum)
                 mWeights.multiplyInPlace(beta1).addInPlace(weightGradients.multiply(1 - beta1));
 
@@ -58,10 +87,9 @@ public class Adam extends Optimizer{
 
                 // Calculate parameter updates
                 JMatrix weightUpdate = mWeightsCorrected.divideInPlace(
-                    vWeightsCorrected.sqrt().addInPlace(epsilon))
-                        .multiplyInPlace(learningRate);
+                    vWeightsCorrected.sqrt().addInPlace(epsilon));
                 
-                updates[i] = weightUpdate;
+                updates[i] = weightUpdate.multiplyInPlace(learningRate);
             }
 
             // Apply updates

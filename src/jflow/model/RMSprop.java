@@ -33,6 +33,25 @@ public class RMSprop extends Optimizer {
 
     @Override
     public void apply(HashMap<String, JMatrix[]> layerGradients) {
+        boolean needsClipping = false;
+        double clipScale = 1.0;
+        if (useClipping()) {
+            double globalGradNormSquared = 0.0;
+            for (JMatrix[] grads : layerGradients.values()) {
+                for (JMatrix grad : grads) {
+                    double frobeniusNorm = grad.frobeniusNorm();
+                    globalGradNormSquared += frobeniusNorm * frobeniusNorm;
+                }
+            }
+
+            double globalGradNorm = Math.sqrt(globalGradNormSquared);
+            
+            if (useClipping() && globalGradNorm > getClipNorm()) {
+                clipScale = getClipNorm() / (globalGradNorm + 1e-6);  // epsilon for numerical stability
+                needsClipping = true;
+            }
+        }
+
         for (Map.Entry<String, JMatrix[]> entry : layerGradients.entrySet()) {
             TrainableLayer layer = getLayerID().get(entry.getKey());
             JMatrix[] gradients = entry.getValue();
@@ -41,6 +60,11 @@ public class RMSprop extends Optimizer {
 
             for (int i = 0; i < gradients.length; i++) {
                 JMatrix weightGradients = gradients[i];
+
+                // Clip if needed
+                if (needsClipping) {
+                    weightGradients.multiplyInPlace(clipScale);
+                }
                 
                 // Get accumulated squared gradients
                 JMatrix accumSqGrad = moments[i * (momentum > 0 ? 2 : 1)];

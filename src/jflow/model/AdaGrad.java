@@ -22,6 +22,24 @@ public class AdaGrad extends Optimizer {
 
     @Override
     public void apply(HashMap<String, JMatrix[]> layerGradients) {
+        boolean needsClipping = false;
+        double clipScale = 1.0;
+        if (useClipping()) {
+            double globalGradNormSquared = 0.0;
+            for (JMatrix[] grads : layerGradients.values()) {
+                for (JMatrix grad : grads) {
+                    double frobeniusNorm = grad.frobeniusNorm();
+                    globalGradNormSquared += frobeniusNorm * frobeniusNorm;
+                }
+            }
+
+            double globalGradNorm = Math.sqrt(globalGradNormSquared);
+            
+            if (useClipping() && globalGradNorm > getClipNorm()) {
+                clipScale = getClipNorm() / (globalGradNorm + 1e-6);  // epsilon for numerical stability
+                needsClipping = true;
+            }
+        }
         for (Map.Entry<String, JMatrix[]> entry : layerGradients.entrySet()) {
             TrainableLayer layer = getLayerID().get(entry.getKey());
             JMatrix[] gradients = entry.getValue();
@@ -31,13 +49,19 @@ public class AdaGrad extends Optimizer {
             for (int i = 0; i < gradients.length; i++) {
                 JMatrix weightGradients = gradients[i];
                 JMatrix accumSquared = accumSquaredGrads[i];
+
+                // Clip if needed
+                if (needsClipping) {
+                    weightGradients.multiplyInPlace(clipScale);
+                }
                 
                 // Accumulate squared gradients
                 accumSquared.addInPlace(weightGradients.multiply(weightGradients));
+
+                JMatrix weightUpdate = weightGradients.divide(accumSquared.sqrt().addInPlace(epsilon));
                 
                 // Calculate parameter update
-                updates[i] = weightGradients.divide(accumSquared.sqrt().addInPlace(epsilon))
-                                           .multiplyInPlace(learningRate);
+                updates[i] = weightUpdate.multiplyInPlace(learningRate);
             }
             
             // Apply updates

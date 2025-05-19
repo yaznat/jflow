@@ -12,7 +12,7 @@ public abstract class Optimizer {
     private LinkedHashMap<TrainableLayer, JMatrix[]> layerMoments = new LinkedHashMap<>();
     private HashMap<String, TrainableLayer> layerID = new HashMap<>();
     private String name;
-    private double clipNorm = -1;
+    private double threshold = -1;
 
     protected Optimizer(String name){
         this.name = name;
@@ -22,20 +22,22 @@ public abstract class Optimizer {
     public abstract void apply(HashMap<String, JMatrix[]> layerGradients);
 
     /**
-     * Set the clip norm of this optimizer. 
-     * @param clipNorm a positive number, since clipping is an absolute value function.
+     * Set the global clip norm of this optimizer. 
+     * If the global frobenius norm exceeds the the threshold,
+     * all weights are scaled by the difference.
+     * @param threshold the frobenius norm threshold.
      */
-    public Optimizer clipNorm(double clipNorm) {
-        this.clipNorm = Math.abs(clipNorm);
+    public Optimizer clipNorm(double threshold) {
+        this.threshold = Math.abs(threshold);
         return this;
     }
 
     protected double getClipNorm() {
-        return clipNorm;
+        return threshold;
     }
 
     protected boolean useClipping() {
-        return clipNorm != -1;
+        return threshold != -1;
     }
 
     protected abstract void initializeLayer(TrainableLayer layer);
