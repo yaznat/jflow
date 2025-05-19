@@ -52,7 +52,8 @@ public abstract class Layer {
     }
 
     protected JMatrix trackOutput(JMatrix output, boolean training) {
-        if (training) {
+        // Last layer must store output
+        if (training || getNextLayer() == null) {
             this.output = output;
         } else {
             // Ensure memory is freed
