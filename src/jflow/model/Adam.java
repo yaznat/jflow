@@ -11,7 +11,7 @@ public class Adam extends Optimizer{
     private double beta2; // Momentum coefficient of the second moment
     private double learningRate;
     private double epsilon = 1e-8; // Small constant for numerical stability
-    private int timesteps = 0;
+    private long timesteps = 0;
 
     protected Adam(double learningRate, double beta1, double beta2) {
         super("adam");
@@ -27,10 +27,10 @@ public class Adam extends Optimizer{
         this.learningRate = learningRate;
     }
 
-    protected int getTimeSteps() {
+    protected long getTimeSteps() {
         return timesteps;
     }
-    protected void setTimeSteps(int timeSteps) {
+    protected void setTimeSteps(long timeSteps) {
         this.timesteps = timeSteps;
     }
 

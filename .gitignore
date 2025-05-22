@@ -6,5 +6,6 @@ src/jflow/layers/Recurrent.java
 src/GANDemo.java
 src/DenseGANDemo.java
 src/GAPTest.java
-src/gpt2/
 gpt2-versions/
+datasets/gpt2-dataset
+src/gpt2

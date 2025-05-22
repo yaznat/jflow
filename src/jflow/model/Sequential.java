@@ -1,7 +1,13 @@
 package jflow.model;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -10,12 +16,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.stream.IntStream;
 
 import jflow.data.*;
 import jflow.layers.Dense;
 import jflow.layers.Embedding;
 import jflow.layers.Sigmoid;
 import jflow.layers.templates.TrainableLayer;
+import jflow.utils.Callbacks;
 import jflow.utils.Metrics;
 
 
@@ -326,12 +335,9 @@ public class Sequential{
         double prevValLoss = Double.POSITIVE_INFINITY;
         double bestValLoss = Double.POSITIVE_INFINITY;
 
-        // Visually separate training to reduce terminal clutter
-        System.out.println("");
+        // Print training header
         String name = (this.name == null) ? "sequential_" + modelNum : this.name;
-        System.out.println("\033[94m=================== \033[1mTraining: " + name + 
-            "\033[0;94m ==================\033[0m");
-
+        Callbacks.printTrainingHeader(name);
         // Prepare validation data
         JMatrix valData = null;
         int[] valLabels = null;
@@ -389,11 +395,11 @@ public class Sequential{
                 long batchTime = System.nanoTime();
                 long timeSinceStart = batchTime - startTime;
 
-                HashMap<String, Double> lossReport = new HashMap<>();
+                LinkedHashMap<String, Double> lossReport = new LinkedHashMap<>();
                 lossReport.put("Loss", totalLoss / (batch + 1));
 
                 if (!debugMode) {
-                    Metrics.printTrainingCallback(epoch, epochs, batch + 1, numBatches,
+                    Callbacks.printProgressCallback("Epoch", epoch, epochs, "Batch", batch + 1, numBatches,
                         timeSinceStart, lossReport);
                 }
             }
@@ -700,171 +706,132 @@ public class Sequential{
 
 
     /**
-     * Save weights to .txt files in a directory.
+     * Save weights to binary files in a directory.
      * @param path               The name of the directory to store files in.
      */
     public void saveWeights(String path) {
         internalSaveWeights(path, true);
     }
-    private void internalSaveWeights(String path, boolean printReport) {
-        for (jflow.model.Layer l : layers) {
-            // Check if the layer needs saving
-            if (l instanceof TrainableLayer) {
-                TrainableLayer trainable = (TrainableLayer)l;
+    public void internalSaveWeights(String path, boolean printReport) {
+        // Save trainable layer weights
+        IntStream.range(0, layers.size())
+            .parallel()
+            .forEach(i -> {
+                jflow.model.Layer l = layers.get(i);
+                if (l instanceof TrainableLayer trainable) {
+                    for (JMatrix weight : trainable.getWeights()) {
+                        String filePath = path + "/" + trainable.getName() + "_" + weight.getName() + ".bin";
+                        saveWeightToBinary(filePath, weight);
+                    }
+                }
+            });
     
-                JMatrix[] weights = trainable.getWeights();
-                for (JMatrix weight : weights) {
-                    BufferedWriter writer = null;
-                    try {
-                        try{
-                            writer = new BufferedWriter(
-                                    new FileWriter(path + "/" + trainable.getName() + 
-                                    "_" + weight.getName() + ".txt", false));
-                        }catch(Exception e1){
-                            Path dir = Paths.get(path);
-                            Files.createDirectories(dir);
-                            writer = new BufferedWriter(
-                                new FileWriter( path + "/" + trainable.getName() 
-                                + "_" + weight.getName() + ".txt", false));
-                        }
-                        for (int i = 0; i < weight.size(); i++) {
-                            writer.write(String.valueOf(weight.get(i)) + ",");
-                        }
-                        writer.flush();
-                        writer.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
+        // Save optimizer time steps
         if (optimizer != null) {
-            // Save Adam time steps
-            if (optimizer instanceof Adam) {
-                BufferedWriter writer = null;
+            if (optimizer instanceof Adam adam) {
+                String timestepPath = path + "/" + optimizer.getName() + "/timesteps.bin";
                 try {
-                    try{
-                        writer = new BufferedWriter(
-                                new FileWriter(path + "/" + optimizer.getName() + "/"
-                                 + "timesteps.txt", false));
-                    }catch(Exception e1){
-                        Path dir = Paths.get(path + "/" + optimizer.getName());
-                        Files.createDirectories(dir);
-                        writer = new BufferedWriter(
-                            new FileWriter( path + "/" + optimizer.getName() + "/"
-                            + "timesteps.txt", false));
-                    }
-                    writer.write(String.valueOf(((Adam)optimizer).getTimeSteps()));
-                    writer.flush();
-                    writer.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            // Save optimizer weights
-            JMatrix[] weights = optimizer.getWeights();
-            for (JMatrix weight : weights) {
-                BufferedWriter writer = null;
-                try {
-                    try{
-                        writer = new BufferedWriter(
-                                new FileWriter(path + "/" + optimizer.getName() + "/"
-                                 + weight.getName() + ".txt", false));
-                    }catch(Exception e1){
-                        Path dir = Paths.get(path + "/" + optimizer.getName());
-                        Files.createDirectories(dir);
-                        writer = new BufferedWriter(
-                            new FileWriter( path + "/" + optimizer.getName() + "/"
-                            + weight.getName() + ".txt", false));
-                    }
-                    for (int i = 0; i < weight.size(); i++) {
-                        writer.write(String.valueOf(weight.get(i)) + ",");
-                    }
-                    writer.flush();
-                    writer.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
+                    Path dir = Paths.get(path + "/" + optimizer.getName());
+                    Files.createDirectories(dir);
             
+                    try (DataOutputStream dos = new DataOutputStream(new FileOutputStream(timestepPath))) {
+                        dos.writeLong(adam.getTimeSteps()); // Write 8-byte long
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+    
+            // Save optimizer weights
+            JMatrix[] optWeights = optimizer.getWeights();
+            IntStream.range(0, optWeights.length)
+                .parallel()
+                .forEach(i -> {
+                    JMatrix weight = optWeights[i];
+                    String filePath = path + "/" + optimizer.getName() + "/" + weight.getName() + ".bin";
+                    saveWeightToBinary(filePath, weight);
+                });
+        }
+    
         if (printReport) {
             System.out.println("Weights saved to " + path);
         }
     }
+
+    // Helper method to write weight values to binary
+    private void saveWeightToBinary(String filePath, JMatrix weight) {
+        try {
+            Path dir = Paths.get(filePath).getParent();
+            if (dir != null) Files.createDirectories(dir);
+
+            try (DataOutputStream dos = new DataOutputStream(
+                    new BufferedOutputStream(
+                        new FileOutputStream(filePath)))) {
+                for (int i = 0; i < weight.size(); i++) {
+                    dos.writeFloat(weight.get(i)); // Write 4 bytes per float
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
     /**
-     * Load weights from .txt files in a directory.
+     * Load weights from binary files in a directory.
      * @param path               The location of the directory to load files from.
      */
     public void loadWeights(String path) {
-        for (jflow.model.Layer l : layers) {
-            // Check if the layer needs loading
-            if (l instanceof TrainableLayer) {
-                TrainableLayer trainable = (TrainableLayer)l;
-
-                // Load the layer weights from a .txt file
-                JMatrix[] weights = trainable.getWeights();
-                for (JMatrix weight : weights) {
-                    try (BufferedReader br = new BufferedReader(
-                        new FileReader(path + "/" + 
-                            trainable.getName() + "_" + 
-                            weight.getName() + ".txt"))) {
-                        String line; 
-                        String[] split = null;
-                        while((line = br.readLine()) != null){
-                            split = line.split(",");
-                            break;
-                        }
-                        int x = 0;
-                        for (String s : split) {
-                            weight.set(x++, Float.parseFloat(s));
-                        }
-                    } catch (IOException e) {
-                        e.printStackTrace();
+        // Load all trainable layer weights
+        IntStream.range(0, layers.size())
+            .parallel()
+            .forEach(i -> {
+                jflow.model.Layer l = layers.get(i);
+                if (l instanceof TrainableLayer trainable) {
+                    JMatrix[] weights = trainable.getWeights();
+                    for (JMatrix weight : weights) {
+                        String filePath = path + "/" + trainable.getName() + "_" + weight.getName() + ".bin";
+                        loadWeightFromBinary(filePath, weight);
                     }
                 }
-            }
-        }
+            });
+
         if (optimizer != null) {
-            // Load Adam time steps
-            if (optimizer instanceof Adam) {
-                try (BufferedReader br = new BufferedReader(
-                    new FileReader(path + "/" + 
-                        optimizer.getName() + "/" + 
-                        "timesteps.txt"))) {
-                    String line; 
-                    while((line = br.readLine()) != null){
-                        ((Adam)optimizer).setTimeSteps(Integer.parseInt(line));
-                        break;
-                    }
-                    
+            // Load timestep
+            if (optimizer instanceof Adam adam) {
+                String timestepPath = path + "/" + optimizer.getName() + "/timesteps.bin";
+                try (DataInputStream dis = new DataInputStream(new FileInputStream(timestepPath))) {
+                    adam.setTimeSteps(dis.readLong());
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
             }
+
             // Load optimizer weights
             JMatrix[] weights = optimizer.getWeights();
-            for (JMatrix weight : weights) {
-                try (BufferedReader br = new BufferedReader(
-                    new FileReader(path + "/" + 
-                        optimizer.getName() + "/" + 
-                        weight.getName() + ".txt"))) {
-                    String line; 
-                    String[] split = null;
-                    while((line = br.readLine()) != null){
-                        split = line.split(",");
-                        break;
-                    }
-                    int x = 0;
-                    for (String s : split) {
-                        weight.set(x++, Float.parseFloat(s)); // java.lang.ArrayIndexOutOfBoundsException: Index 64 out of bounds for length 64
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+            IntStream.range(0, weights.length)
+                .parallel()
+                .forEach(i -> {
+                    JMatrix weight = weights[i];
+                    String filePath = path + "/" + optimizer.getName() + "/" + weight.getName() + ".bin";
+                    loadWeightFromBinary(filePath, weight);
+                });
         }
     }
+
+    // Helper method to read a binary file into a JMatrix
+    private void loadWeightFromBinary(String filePath, JMatrix weight) {
+        try (DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(filePath)))) {
+            for (int i = 0; i < weight.size(); i++) {
+                weight.set(i, dis.readFloat());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    
+
 
     private boolean isFlat(Layer layer) {
         return layer instanceof Dense || layer instanceof Embedding;
